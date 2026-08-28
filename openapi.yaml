@@ -1,0 +1,2928 @@
+openapi: 3.0.3
+
+info:
+  title: imoo Watch API
+  description: |
+    Reverse-engineered REST API for the **imoo Watch** companion app (`com.imoo.watch.global`).
+
+    **Methodology**: Static analysis of the Android APK (DEX bytecode string extraction).
+    HTTP methods are **inferred** from endpoint naming conventions and may not be exact.
+    Request/response schemas are not confirmed — placeholders are used where unknown.
+
+    **Services (base URLs)**
+    | Service | Host |
+    |---|---|
+    | Core API | `https://api.watch.okii.com` |
+    | Location API | `https://location.watch.okii.com` |
+    | Health & Sport | `https://sport.watch.okii.com` |
+    | Chat | `https://chat.watch.okii.com` |
+    | Points & Rewards | `https://points.okii.com` |
+    | CDN | `https://watchcdn.okii.com` |
+
+    **International region** mirrors exist at `*-oz.okii.com` (e.g. `api-oz.okii.com`).
+
+    > ⚠️ This spec is for personal research to add features to a device you own.
+    > It is not affiliated with or endorsed by imoo / BBK Electronics.
+  version: "unknown"
+  contact:
+    name: dachrisch
+    url: https://github.com/dachrisch/imoo-watch-api
+
+servers:
+  - url: https://api.watch.okii.com
+    description: Core API (default)
+  - url: https://location.watch.okii.com
+    description: Location API
+  - url: https://sport.watch.okii.com
+    description: Health & Sport API
+  - url: https://chat.watch.okii.com
+    description: Chat API
+  - url: https://points.okii.com
+    description: Points & Rewards API
+  - url: https://watchcdn.okii.com
+    description: CDN
+
+tags:
+  - name: Authentication
+    description: Login, registration, password management, verification
+  - name: QR Code Auth
+    description: QR-code based login flow
+  - name: One-Click Login
+    description: Carrier one-click login (Chinese mobile operators)
+  - name: Third-Party Auth
+    description: Social / third-party account binding
+  - name: OAuth
+    description: OAuth token exchange
+  - name: Watch Account
+    description: Watch device account management
+  - name: Mobile Account
+    description: Guardian (parent) mobile account
+  - name: Device Binding
+    description: Bind/unbind watch to mobile account
+  - name: Genius Accounts
+    description: Secondary accounts on the watch (child sub-accounts)
+  - name: Contacts
+    description: Watch contacts (numbers the watch can call)
+  - name: Watch Friends
+    description: Friend list management
+  - name: Group Chat
+    description: Family group chat room
+  - name: Alarms
+    description: Watch alarm management
+  - name: Notifications
+    description: Push notification queries
+  - name: Find Watch
+    description: Remote locate/ring/photo features
+  - name: Video Calls
+    description: Video and voice call signalling (also on chat.watch.okii.com)
+  - name: Class Mode
+    description: School class schedule / do-not-disturb
+  - name: Watch Functions
+    description: Feature toggles — power saving, habits, time management
+  - name: Geo Zones
+    description: Safe/danger zone geo-fencing
+  - name: WiFi Management
+    description: Saved WiFi networks on the watch
+  - name: App Store
+    description: Watch app store and recommendations
+  - name: Media & Files
+    description: File upload, image, photo, and video transfer tokens
+  - name: Version & OTA
+    description: Firmware/app update checks
+  - name: Payment
+    description: In-app payment and data plan management
+  - name: Operations & Rewards
+    description: Gamification tasks and points
+  - name: Social
+    description: Social content and user habit tracking
+  - name: Time Memory
+    description: Time-memory photo/memory service
+  - name: Watch Data
+    description: Raw watch sensor data upload
+  - name: Data Migration
+    description: Account and device migration flows
+  - name: Logging
+    description: Client-side log collection
+  - name: Server Config
+    description: App configuration and H5 URL resolution
+  - name: Watch Settings
+    description: Watch-level settings aggregated under /smartwatch/ path prefix
+  - name: Location
+    x-server: https://location.watch.okii.com
+    description: "**Host:** `location.watch.okii.com` — Current location and real-time tracking"
+  - name: Trail & Contrail
+    x-server: https://location.watch.okii.com
+    description: "**Host:** `location.watch.okii.com` — Movement history and trail data"
+  - name: All-Day Guard
+    x-server: https://location.watch.okii.com
+    description: "**Host:** `location.watch.okii.com` — All-day location guard with safe/danger areas"
+  - name: All-Day Guard v2
+    x-server: https://location.watch.okii.com
+    description: "**Host:** `location.watch.okii.com` — Revised guard mode with union state"
+  - name: Combined Guard
+    x-server: https://location.watch.okii.com
+    description: "**Host:** `location.watch.okii.com` — Unified guard mode switch"
+  - name: Follow Guard
+    x-server: https://location.watch.okii.com
+    description: "**Host:** `location.watch.okii.com` — Parent follows child in real time"
+  - name: Holiday Guard
+    x-server: https://location.watch.okii.com
+    description: "**Host:** `location.watch.okii.com` — Holiday-specific guard configuration"
+  - name: Mark Locations
+    x-server: https://location.watch.okii.com
+    description: "**Host:** `location.watch.okii.com` — Saved named locations (home, school)"
+  - name: Indoor & 3D
+    x-server: https://location.watch.okii.com
+    description: "**Host:** `location.watch.okii.com` — Indoor/building floor-level tracking"
+  - name: Location Tagging
+    x-server: https://location.watch.okii.com
+    description: "**Host:** `location.watch.okii.com` — Location correction and tagging strategy"
+  - name: Health
+    x-server: https://sport.watch.okii.com
+    description: "**Host:** `sport.watch.okii.com` — Health summary home-screen data"
+  - name: Chat Messaging
+    x-server: https://chat.watch.okii.com
+    description: "**Host:** `chat.watch.okii.com` — Emoji and voice message exchange"
+  - name: Points
+    x-server: https://points.okii.com
+    description: "**Host:** `points.okii.com` — Points balance and reward tasks"
+  - name: CDN
+    x-server: https://watchcdn.okii.com
+    description: "**Host:** `watchcdn.okii.com` — Announcement feeds and demo assets"
+
+# ── Shared schemas ────────────────────────────────────────────────────────────
+components:
+  schemas:
+    GenericResponse:
+      type: object
+      description: Standard API response envelope (schema unconfirmed)
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: success
+        data:
+          description: Payload — structure varies per endpoint
+    WatchId:
+      type: string
+      description: Watch device identifier
+    MobileId:
+      type: string
+      description: Guardian mobile account identifier
+  securitySchemes:
+    BearerToken:
+      type: http
+      scheme: bearer
+      description: JWT or opaque token obtained from /app/login2 or /app/tokenLogin
+
+security:
+  - BearerToken: []
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+paths:
+
+  # ── Authentication ──────────────────────────────────────────────────────────
+  /app/rsakey:
+    get:
+      tags: [Authentication]
+      summary: Get RSA public key
+      description: Returns the RSA public key used to encrypt passwords before login.
+      security: []
+      responses:
+        '200': { description: RSA public key, content: { application/json: { schema: { $ref: '#/components/schemas/GenericResponse' } } } }
+
+  /app/login/modes:
+    get:
+      tags: [Authentication]
+      summary: Get available login modes
+      security: []
+      responses:
+        '200': { description: List of supported login modes }
+
+  /app/areaCodeList:
+    get:
+      tags: [Authentication]
+      summary: Get country/area code list for phone registration
+      security: []
+      responses:
+        '200': { description: Area code list }
+
+  /app/checkAccount:
+    get:
+      tags: [Authentication]
+      summary: Check if account exists
+      parameters:
+        - { name: phone, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Account existence status }
+
+  /app/passwordStatus:
+    get:
+      tags: [Authentication]
+      summary: Get password status for account
+      responses:
+        '200': { description: Password status }
+
+  /app/getRandCode:
+    post:
+      tags: [Authentication]
+      summary: Request SMS verification code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone: { type: string }
+                areaCode: { type: string }
+      responses:
+        '200': { description: Code sent }
+
+  /app/sendRandCodeV2:
+    post:
+      tags: [Authentication]
+      summary: Request SMS verification code (v2)
+      security: []
+      responses:
+        '200': { description: Code sent }
+
+  /app/checkRandCode:
+    post:
+      tags: [Authentication]
+      summary: Verify SMS code
+      responses:
+        '200': { description: Code verification result }
+
+  /app/verifyCode:
+    post:
+      tags: [Authentication]
+      summary: Verify code (generic)
+      responses:
+        '200': { description: Verification result }
+
+  /app/regist:
+    post:
+      tags: [Authentication]
+      summary: Register new account
+      security: []
+      responses:
+        '200': { description: Registration result }
+
+  /app/login2:
+    post:
+      tags: [Authentication]
+      summary: Login with phone + password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone: { type: string }
+                password: { type: string, description: RSA-encrypted password }
+                areaCode: { type: string }
+      responses:
+        '200': { description: Login token and account info }
+
+  /app/loginV2:
+    post:
+      tags: [Authentication]
+      summary: Login v2
+      security: []
+      responses:
+        '200': { description: Login token }
+
+  /app/randcodeLogin:
+    post:
+      tags: [Authentication]
+      summary: Login with SMS code
+      security: []
+      responses:
+        '200': { description: Login token }
+
+  /app/tokenLogin:
+    post:
+      tags: [Authentication]
+      summary: Login using existing token
+      responses:
+        '200': { description: Refreshed token }
+
+  /app/logout:
+    post:
+      tags: [Authentication]
+      summary: Logout current session
+      responses:
+        '200': { description: Logout confirmation }
+
+  /app/verifyToken:
+    post:
+      tags: [Authentication]
+      summary: Verify token validity
+      responses:
+        '200': { description: Token validity }
+
+  /app/verifyPassword:
+    post:
+      tags: [Authentication]
+      summary: Verify password
+      responses:
+        '200': { description: Password verification }
+
+  /app/verifyPasswordV2:
+    post:
+      tags: [Authentication]
+      summary: Verify password v2
+      responses:
+        '200': { description: Password verification }
+
+  /app/verifyWeakPassword:
+    post:
+      tags: [Authentication]
+      summary: Check if password is weak
+      responses:
+        '200': { description: Password strength result }
+
+  /app/verifyUserPower:
+    get:
+      tags: [Authentication]
+      summary: Verify user permissions
+      responses:
+        '200': { description: Permission set }
+
+  /app/modifyPassword:
+    post:
+      tags: [Authentication]
+      summary: Change password
+      responses:
+        '200': { description: Password updated }
+
+  /app/modifyUsername:
+    post:
+      tags: [Authentication]
+      summary: Update display name
+      responses:
+        '200': { description: Username updated }
+
+  /app/modifyUserPhone:
+    post:
+      tags: [Authentication]
+      summary: Update phone number
+      responses:
+        '200': { description: Phone updated }
+
+  /app/resetPassword:
+    post:
+      tags: [Authentication]
+      summary: Reset forgotten password
+      security: []
+      responses:
+        '200': { description: Password reset }
+
+  /app/resetPasswordForBindPhone:
+    post:
+      tags: [Authentication]
+      summary: Reset password for bound phone
+      security: []
+      responses:
+        '200': { description: Password reset }
+
+  /app/changeDeviceLogin:
+    post:
+      tags: [Authentication]
+      summary: Login from new device
+      responses:
+        '200': { description: Device change result }
+
+  /app/changeDeviceRandcodeLogin:
+    post:
+      tags: [Authentication]
+      summary: Login from new device using SMS code
+      responses:
+        '200': { description: Device change result }
+
+  /app/checkChangeDeviceRandcode:
+    post:
+      tags: [Authentication]
+      summary: Check SMS code for device change
+      responses:
+        '200': { description: Verification result }
+
+  /app/moveTicket:
+    post:
+      tags: [Authentication]
+      summary: Move login ticket between sessions
+      responses:
+        '200': { description: Ticket moved }
+
+  /app/deleteAccount:
+    delete:
+      tags: [Authentication]
+      summary: Delete account
+      responses:
+        '200': { description: Account deleted }
+
+  /app/v2/deleteAccount:
+    delete:
+      tags: [Authentication]
+      summary: Delete account (v2)
+      responses:
+        '200': { description: Account deleted }
+
+  # ── QR Code Auth ────────────────────────────────────────────────────────────
+  /app/qrcode:
+    post:
+      tags: [QR Code Auth]
+      summary: Generate QR code for login
+      responses:
+        '200': { description: QR code data }
+
+  /app/qrcode/login:
+    post:
+      tags: [QR Code Auth]
+      summary: Poll QR code login status
+      responses:
+        '200': { description: QR login result }
+
+  /app/qrcode/scan:
+    post:
+      tags: [QR Code Auth]
+      summary: Confirm QR code scan
+      responses:
+        '200': { description: Scan confirmed }
+
+  /app/qrcode/token:
+    get:
+      tags: [QR Code Auth]
+      summary: Get token from scanned QR code
+      responses:
+        '200': { description: Auth token }
+
+  # ── One-Click Login ─────────────────────────────────────────────────────────
+  /app/oneClick/getServer:
+    get:
+      tags: [One-Click Login]
+      summary: Get one-click login server config
+      responses:
+        '200': { description: Server config }
+
+  /app/oneClick/getSwitch:
+    get:
+      tags: [One-Click Login]
+      summary: Check if one-click login is available
+      responses:
+        '200': { description: Switch state }
+
+  /app/oneClick/login:
+    post:
+      tags: [One-Click Login]
+      summary: One-click login
+      security: []
+      responses:
+        '200': { description: Auth token }
+
+  /app/oneClick/loginV2:
+    post:
+      tags: [One-Click Login]
+      summary: One-click login v2
+      security: []
+      responses:
+        '200': { description: Auth token }
+
+  /app/oneClick/regist:
+    post:
+      tags: [One-Click Login]
+      summary: One-click register
+      security: []
+      responses:
+        '200': { description: Registration result }
+
+  /app/oneClick/userToken:
+    get:
+      tags: [One-Click Login]
+      summary: Get user token for one-click flow
+      responses:
+        '200': { description: User token }
+
+  /app/oneClick/changeDeviceLogin:
+    post:
+      tags: [One-Click Login]
+      summary: One-click login from new device
+      responses:
+        '200': { description: Device change result }
+
+  # ── Third-Party Auth ─────────────────────────────────────────────────────────
+  /app/third/checkAccount:
+    get:
+      tags: [Third-Party Auth]
+      summary: Check if third-party account is linked
+      responses:
+        '200': { description: Account link status }
+
+  /app/third/bind:
+    post:
+      tags: [Third-Party Auth]
+      summary: Bind third-party account
+      responses:
+        '200': { description: Bind result }
+
+  /app/third/login:
+    post:
+      tags: [Third-Party Auth]
+      summary: Login via third-party account
+      security: []
+      responses:
+        '200': { description: Auth token }
+
+  /app/third/regist:
+    post:
+      tags: [Third-Party Auth]
+      summary: Register via third-party account
+      security: []
+      responses:
+        '200': { description: Registration result }
+
+  /app/third/rebind:
+    post:
+      tags: [Third-Party Auth]
+      summary: Re-bind third-party account
+      responses:
+        '200': { description: Rebind result }
+
+  /app/third/delete:
+    delete:
+      tags: [Third-Party Auth]
+      summary: Remove third-party account link
+      responses:
+        '200': { description: Link removed }
+
+  /app/third/unbind:
+    post:
+      tags: [Third-Party Auth]
+      summary: Unbind third-party account
+      responses:
+        '200': { description: Unbound }
+
+  # ── OAuth ───────────────────────────────────────────────────────────────────
+  /oauth/oauthBind/getWatchId:
+    get:
+      tags: [OAuth]
+      summary: Get watch ID via OAuth binding
+      responses:
+        '200': { description: Watch ID }
+
+  /oauth/openAccount/getOpenId:
+    get:
+      tags: [OAuth]
+      summary: Get open platform user ID
+      responses:
+        '200': { description: Open ID }
+
+  # ── Watch Account ────────────────────────────────────────────────────────────
+  /watchaccount:
+    get:
+      tags: [Watch Account]
+      summary: Get watch account details
+      responses:
+        '200': { description: Watch account info }
+
+  /watchaccount/id/{watchId}:
+    get:
+      tags: [Watch Account]
+      summary: Get watch account by watch ID
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Watch account }
+
+  /watchaccount/getAuthorize:
+    get:
+      tags: [Watch Account]
+      summary: Get watch authorizations
+      responses:
+        '200': { description: Authorization list }
+
+  /watchaccount/4G/getAuthorize:
+    get:
+      tags: [Watch Account]
+      summary: Get 4G data authorizations
+      responses:
+        '200': { description: 4G authorization }
+
+  /watchaccount/remote/search:
+    get:
+      tags: [Watch Account]
+      summary: Remote search for watch account
+      responses:
+        '200': { description: Search result }
+
+  /watchaccount/soundMode/{watchId}:
+    get:
+      tags: [Watch Account]
+      summary: Get watch sound mode
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Sound mode }
+
+  /watchaccount/authorizeSwitch:
+    post:
+      tags: [Watch Account]
+      summary: Toggle authorization
+      responses:
+        '200': { description: Switch updated }
+
+  /watchaccount/classdisabled:
+    post:
+      tags: [Watch Account]
+      summary: Set class mode disabled state
+      responses:
+        '200': { description: Updated }
+
+  /watchaccount/updateBabyName:
+    post:
+      tags: [Watch Account]
+      summary: Update child's name on watch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                watchId: { type: string }
+                babyName: { type: string }
+      responses:
+        '200': { description: Name updated }
+
+  /watchaccount/updateRealName:
+    post:
+      tags: [Watch Account]
+      summary: Update real-name verification
+      responses:
+        '200': { description: Updated }
+
+  /watchaccount/update/watchAttribute:
+    post:
+      tags: [Watch Account]
+      summary: Update watch attributes
+      responses:
+        '200': { description: Attributes updated }
+
+  /watchaccount/soundMode/setSoundMode:
+    post:
+      tags: [Watch Account]
+      summary: Set watch sound mode
+      responses:
+        '200': { description: Sound mode set }
+
+  # ── Mobile Account ───────────────────────────────────────────────────────────
+  /mobileaccount:
+    get:
+      tags: [Mobile Account]
+      summary: Get guardian mobile account info
+      responses:
+        '200': { description: Mobile account }
+
+  /mobileaccount/id/{mobileId}:
+    get:
+      tags: [Mobile Account]
+      summary: Get mobile account by ID
+      parameters:
+        - { name: mobileId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Mobile account }
+
+  /mobileinit/authid:
+    get:
+      tags: [Mobile Account]
+      summary: Get auth ID for mobile init
+      responses:
+        '200': { description: Auth ID }
+
+  /mobileoperator/charge/latest:
+    get:
+      tags: [Mobile Account]
+      summary: Get latest data plan charge info
+      responses:
+        '200': { description: Charge info }
+
+  # ── Device Binding ───────────────────────────────────────────────────────────
+  /mobilewatch:
+    get:
+      tags: [Device Binding]
+      summary: Get all bound watches for mobile account
+      responses:
+        '200': { description: Bound watches list }
+
+  /mobilewatch/{id}:
+    get:
+      tags: [Device Binding]
+      summary: Get mobile-watch binding by ID
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Binding info }
+
+  /mobilewatch/mobile/{mobileId}:
+    get:
+      tags: [Device Binding]
+      summary: Get watches bound to mobile ID
+      parameters:
+        - { name: mobileId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Bound watches }
+
+  /mobilewatch/watch/{watchId}:
+    get:
+      tags: [Device Binding]
+      summary: Get mobile accounts bound to watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Bound mobiles }
+
+  /mobilewatch/changeadmin:
+    post:
+      tags: [Device Binding]
+      summary: Transfer admin role to another guardian
+      responses:
+        '200': { description: Admin transferred }
+
+  # ── Genius Accounts ──────────────────────────────────────────────────────────
+  /geniusAccount:
+    get:
+      tags: [Genius Accounts]
+      summary: List genius (secondary) accounts
+      responses:
+        '200': { description: Account list }
+
+  /geniusAccount/delete/{id}:
+    delete:
+      tags: [Genius Accounts]
+      summary: Delete genius account
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Deleted }
+
+  /geniusAccount/batchDelete:
+    delete:
+      tags: [Genius Accounts]
+      summary: Batch delete genius accounts
+      responses:
+        '200': { description: Deleted }
+
+  /geniusAccount/settingPassword:
+    post:
+      tags: [Genius Accounts]
+      summary: Set password for genius account
+      responses:
+        '200': { description: Password set }
+
+  /geniusAccount/updateGeniusIcon:
+    post:
+      tags: [Genius Accounts]
+      summary: Update genius account avatar
+      responses:
+        '200': { description: Icon updated }
+
+  /geniusAccount/updateNumber:
+    post:
+      tags: [Genius Accounts]
+      summary: Update genius account phone number
+      responses:
+        '200': { description: Number updated }
+
+  # ── Contacts ─────────────────────────────────────────────────────────────────
+  /contact/{watchId}:
+    get:
+      tags: [Contacts]
+      summary: Get contacts for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Contact list }
+
+  /contact/batch/add:
+    post:
+      tags: [Contacts]
+      summary: Add multiple contacts
+      responses:
+        '200': { description: Contacts added }
+
+  /contact/del/{id}:
+    delete:
+      tags: [Contacts]
+      summary: Delete contact
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Deleted }
+
+  /contact/sort:
+    post:
+      tags: [Contacts]
+      summary: Reorder contact list
+      responses:
+        '200': { description: Sorted }
+
+  /contact/update/info:
+    post:
+      tags: [Contacts]
+      summary: Update contact info
+      responses:
+        '200': { description: Updated }
+
+  /contact/up/types:
+    post:
+      tags: [Contacts]
+      summary: Update contact type/category
+      responses:
+        '200': { description: Types updated }
+
+  /contact/contactParentReview:
+    post:
+      tags: [Contacts]
+      summary: Parent review of contact change request
+      responses:
+        '200': { description: Review submitted }
+
+  /contact/autocall/getDualSwitch:
+    get:
+      tags: [Contacts]
+      summary: Get auto-call dual SIM switch state
+      responses:
+        '200': { description: Switch state }
+
+  /contact/autocall/remindWatch:
+    post:
+      tags: [Contacts]
+      summary: Remind watch to update auto-call setting
+      responses:
+        '200': { description: Reminder sent }
+
+  # ── Watch Friends ─────────────────────────────────────────────────────────────
+  /watchfriend/watchid/{watchId}:
+    get:
+      tags: [Watch Friends]
+      summary: Get friend list for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Friend list }
+
+  /watchfriend/id/{id}:
+    get:
+      tags: [Watch Friends]
+      summary: Get friend by ID
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Friend info }
+
+  /watchfriend/recommendClassmate:
+    get:
+      tags: [Watch Friends]
+      summary: Get recommended classmate friends
+      responses:
+        '200': { description: Recommendations }
+
+  /watchfriend/batch:
+    post:
+      tags: [Watch Friends]
+      summary: Batch add friends
+      responses:
+        '200': { description: Friends added }
+
+  /watchfriend/friendname:
+    post:
+      tags: [Watch Friends]
+      summary: Update friend display name
+      responses:
+        '200': { description: Name updated }
+
+  /watchfriend/importPhoneBook:
+    post:
+      tags: [Watch Friends]
+      summary: Import friends from phone book
+      responses:
+        '200': { description: Imported }
+
+  /watchfriend/update/info:
+    post:
+      tags: [Watch Friends]
+      summary: Update friend info
+      responses:
+        '200': { description: Updated }
+
+  # ── Group Chat ────────────────────────────────────────────────────────────────
+  /group-chat/familyGroup/groups:
+    get:
+      tags: [Group Chat]
+      summary: Get family group chat list
+      responses:
+        '200': { description: Group list }
+
+  /group-chat/familyGroup/members:
+    get:
+      tags: [Group Chat]
+      summary: Get group members
+      responses:
+        '200': { description: Member list }
+
+  /group-chat/file/download:
+    get:
+      tags: [Group Chat]
+      summary: Download group chat file
+      responses:
+        '200': { description: File content }
+
+  /group-chat/familyGroup/create:
+    post:
+      tags: [Group Chat]
+      summary: Create family group
+      responses:
+        '200': { description: Group created }
+
+  /group-chat/familyGroup/dismiss:
+    post:
+      tags: [Group Chat]
+      summary: Dismiss family group
+      responses:
+        '200': { description: Group dismissed }
+
+  /group-chat/familyGroup/invite:
+    post:
+      tags: [Group Chat]
+      summary: Invite member to group
+      responses:
+        '200': { description: Invited }
+
+  /group-chat/familyGroup/quit:
+    post:
+      tags: [Group Chat]
+      summary: Leave family group
+      responses:
+        '200': { description: Left }
+
+  # ── Alarms ────────────────────────────────────────────────────────────────────
+  /watchalarm/watchid/{watchId}:
+    get:
+      tags: [Alarms]
+      summary: Get alarms for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Alarm list }
+
+  /watchalarm/id/{watchAlarmId}:
+    get:
+      tags: [Alarms]
+      summary: Get alarm by ID
+      parameters:
+        - { name: watchAlarmId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Alarm details }
+
+  /watchalarm/getthemes/{watchId}:
+    get:
+      tags: [Alarms]
+      summary: Get available alarm themes/tones
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Alarm themes }
+
+  # ── Notifications ─────────────────────────────────────────────────────────────
+  /notice/hasnew/{mobileId}:
+    get:
+      tags: [Notifications]
+      summary: Check for new notices for mobile account
+      parameters:
+        - { name: mobileId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: New notice flag }
+
+  /notice/wear/last/{mobileId}:
+    get:
+      tags: [Notifications]
+      summary: Get last wear notification for mobile
+      parameters:
+        - { name: mobileId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Last notification }
+
+  /notice/wear/{watchId}:
+    get:
+      tags: [Notifications]
+      summary: Get wear notifications for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Notifications }
+
+  /findwatches/inform:
+    post:
+      tags: [Notifications]
+      summary: Send notification to found watch
+      responses:
+        '200': { description: Notification sent }
+
+  # ── Find Watch ────────────────────────────────────────────────────────────────
+  /findWatch/getLeaveMessage:
+    get:
+      tags: [Find Watch]
+      summary: Get leave message for lost watch
+      responses:
+        '200': { description: Leave message }
+
+  /findWatch/getPhotos:
+    get:
+      tags: [Find Watch]
+      summary: Get remote photos taken by watch camera
+      responses:
+        '200': { description: Photo list }
+
+  /findWatch/getWifiList:
+    get:
+      tags: [Find Watch]
+      summary: Get WiFi networks the watch has seen (helps locate watch)
+      responses:
+        '200': { description: WiFi list }
+
+  /findWatch/playSound:
+    post:
+      tags: [Find Watch]
+      summary: Trigger watch to play a find-me sound
+      responses:
+        '200': { description: Sound triggered }
+
+  /findWatch/setLeaveMessage:
+    post:
+      tags: [Find Watch]
+      summary: Set leave message displayed on lost watch
+      responses:
+        '200': { description: Message set }
+
+  # ── Video Calls ────────────────────────────────────────────────────────────────
+  /videocall/call:
+    post:
+      tags: [Video Calls]
+      summary: Initiate video/voice call
+      description: Available on both `api.watch.okii.com` and `chat.watch.okii.com`
+      responses:
+        '200': { description: Call initiated }
+
+  /videocall/callresponse:
+    post:
+      tags: [Video Calls]
+      summary: Respond to incoming call (accept/decline)
+      responses:
+        '200': { description: Response sent }
+
+  /videocall/finish:
+    post:
+      tags: [Video Calls]
+      summary: End call normally
+      responses:
+        '200': { description: Call ended }
+
+  /videocall/hangup:
+    post:
+      tags: [Video Calls]
+      summary: Hang up call
+      responses:
+        '200': { description: Hung up }
+
+  /videocall/callquality:
+    get:
+      tags: [Video Calls]
+      summary: Get call quality metrics
+      responses:
+        '200': { description: Quality data }
+
+  /videocall/setting:
+    get:
+      tags: [Video Calls]
+      summary: Get video call settings
+      responses:
+        '200': { description: Call settings }
+
+  /videocall/settingCallback:
+    post:
+      tags: [Video Calls]
+      summary: Update video call settings callback
+      responses:
+        '200': { description: Updated }
+
+  /videocall/chat/videoToVoice:
+    post:
+      tags: [Video Calls]
+      summary: Switch active video call to voice-only
+      responses:
+        '200': { description: Switched to voice }
+
+  /videocall/interact:
+    post:
+      tags: [Video Calls]
+      summary: Send in-call interaction event
+      responses:
+        '200': { description: Interaction sent }
+
+  # ── Class Mode ────────────────────────────────────────────────────────────────
+  /classmode/{watchId}:
+    get:
+      tags: [Class Mode]
+      summary: Get class mode schedules for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Class schedules }
+
+  /classmode/getNewClassModesByMobileId/{mobileId}:
+    get:
+      tags: [Class Mode]
+      summary: Get class modes by mobile account
+      parameters:
+        - { name: mobileId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Class modes }
+
+  /classmode/isAlert:
+    get:
+      tags: [Class Mode]
+      summary: Check if class mode alert is active
+      responses:
+        '200': { description: Alert state }
+
+  /classmode/v2/add:
+    post:
+      tags: [Class Mode]
+      summary: Add class schedule (v2)
+      responses:
+        '200': { description: Schedule added }
+
+  /classmode/v2/update:
+    put:
+      tags: [Class Mode]
+      summary: Update class schedule (v2)
+      responses:
+        '200': { description: Schedule updated }
+
+  /classmode/v2/{watchId}:
+    get:
+      tags: [Class Mode]
+      summary: Get class schedules v2 for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Class schedules v2 }
+
+  # ── Watch Functions ───────────────────────────────────────────────────────────
+  /watch-func/constant/{key}:
+    get:
+      tags: [Watch Functions]
+      summary: Get app constant by key
+      parameters:
+        - { name: key, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Constant value }
+
+  /watch-func/habit/current/task:
+    get:
+      tags: [Watch Functions]
+      summary: Get current habit task
+      responses:
+        '200': { description: Current task }
+
+  /watch-func/habit/list/task:
+    get:
+      tags: [Watch Functions]
+      summary: List habit tasks
+      responses:
+        '200': { description: Task list }
+
+  /watch-func/headset/getStatus:
+    get:
+      tags: [Watch Functions]
+      summary: Get headset connection status
+      responses:
+        '200': { description: Headset status }
+
+  /watch-func/systemMode/getMode:
+    get:
+      tags: [Watch Functions]
+      summary: Get current system mode (normal/power-save/class)
+      responses:
+        '200': { description: System mode }
+
+  /watch-func/timeManagement/list:
+    get:
+      tags: [Watch Functions]
+      summary: List time management rules
+      responses:
+        '200': { description: Rules list }
+
+  /watch-func/endurance/onOrOff:
+    post:
+      tags: [Watch Functions]
+      summary: Toggle endurance/long-life mode
+      responses:
+        '200': { description: Mode toggled }
+
+  /watch-func/habit/create/light:
+    post:
+      tags: [Watch Functions]
+      summary: Create light habit
+      responses:
+        '200': { description: Habit created }
+
+  /watch-func/habit/create/task:
+    post:
+      tags: [Watch Functions]
+      summary: Create task habit
+      responses:
+        '200': { description: Task created }
+
+  /watch-func/powerSaving:
+    post:
+      tags: [Watch Functions]
+      summary: Toggle power saving mode
+      responses:
+        '200': { description: Mode set }
+
+  /watch-func/systemMode/switch:
+    post:
+      tags: [Watch Functions]
+      summary: Switch system mode
+      responses:
+        '200': { description: Mode switched }
+
+  /watch-func/timeManagement/add:
+    post:
+      tags: [Watch Functions]
+      summary: Add time management rule
+      responses:
+        '200': { description: Rule added }
+
+  /watch-func/userAgreement/agree:
+    post:
+      tags: [Watch Functions]
+      summary: Accept user agreement
+      responses:
+        '200': { description: Agreement recorded }
+
+  /watch-func/vivo:
+    get:
+      tags: [Watch Functions]
+      summary: Get vivo integration status/config
+      responses:
+        '200': { description: Vivo config }
+
+  # ── Geo Zones ─────────────────────────────────────────────────────────────────
+  /zone/watch/{watchId}:
+    get:
+      tags: [Geo Zones]
+      summary: Get geo zones for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Zone list }
+
+  /zone/familyWifi/{watchId}:
+    get:
+      tags: [Geo Zones]
+      summary: Get family WiFi zones for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: WiFi zones }
+
+  /zone/getFloor:
+    get:
+      tags: [Geo Zones]
+      summary: Get current floor setting
+      responses:
+        '200': { description: Floor info }
+
+  /zone/mainswitch/{watchId}:
+    get:
+      tags: [Geo Zones]
+      summary: Get zone main switch state
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Switch state }
+
+  /zone/recommendwifis/{watchId}:
+    get:
+      tags: [Geo Zones]
+      summary: Get recommended home/school WiFi networks
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Recommended networks }
+
+  /zone/floorSetting:
+    post:
+      tags: [Geo Zones]
+      summary: Set floor for zone
+      responses:
+        '200': { description: Floor set }
+
+  /markLocation/forApp/saveArea:
+    post:
+      tags: [Geo Zones]
+      summary: Save a marked area (home/school)
+      responses:
+        '200': { description: Area saved }
+
+  # ── WiFi Management ───────────────────────────────────────────────────────────
+  /watchWifi/v2/getWifi/{watchId}:
+    get:
+      tags: [WiFi Management]
+      summary: Get saved WiFi for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: WiFi config }
+
+  /watchWifi/v2/list/{watchId}:
+    get:
+      tags: [WiFi Management]
+      summary: List saved WiFi networks
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Network list }
+
+  /watchWifi/v2/maxWifiCount:
+    get:
+      tags: [WiFi Management]
+      summary: Get max allowed saved WiFi count
+      responses:
+        '200': { description: Max count }
+
+  /watchWifi/v2:
+    post:
+      tags: [WiFi Management]
+      summary: Add or update saved WiFi
+      responses:
+        '200': { description: WiFi saved }
+
+  /watchWifi/v2/delete:
+    delete:
+      tags: [WiFi Management]
+      summary: Delete saved WiFi network
+      responses:
+        '200': { description: Deleted }
+
+  # ── App Store ─────────────────────────────────────────────────────────────────
+  /appstore/app/listAll:
+    get:
+      tags: [App Store]
+      summary: List all apps in watch app store
+      responses:
+        '200': { description: App list }
+
+  /appstore/search/global:
+    get:
+      tags: [App Store]
+      summary: Search apps globally
+      parameters:
+        - { name: keyword, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Search results }
+
+  /appstore/search/global/all:
+    get:
+      tags: [App Store]
+      summary: Search all apps globally (no filter)
+      responses:
+        '200': { description: All apps }
+
+  /appstore/userapp/getUserApps:
+    get:
+      tags: [App Store]
+      summary: Get apps installed by user
+      responses:
+        '200': { description: Installed apps }
+
+  /appstore/whiteAppInfo/getList:
+    get:
+      tags: [App Store]
+      summary: Get whitelist app info
+      responses:
+        '200': { description: Whitelist }
+
+  /appRecommend/getRecommendedApp:
+    get:
+      tags: [App Store]
+      summary: Get recommended apps
+      responses:
+        '200': { description: Recommendations }
+
+  /appBanner/getModelBanner:
+    get:
+      tags: [App Store]
+      summary: Get banner ads for watch model
+      responses:
+        '200': { description: Banners }
+
+  /appServiceInfo/getAll:
+    get:
+      tags: [App Store]
+      summary: Get all app service info
+      responses:
+        '200': { description: Service info }
+
+  /app/classification:
+    get:
+      tags: [App Store]
+      summary: Get app classification/categories
+      responses:
+        '200': { description: Categories }
+
+  /app/listAll:
+    get:
+      tags: [App Store]
+      summary: List all apps
+      responses:
+        '200': { description: App list }
+
+  /app/getAppRankList:
+    get:
+      tags: [App Store]
+      summary: Get app ranking list
+      responses:
+        '200': { description: Rankings }
+
+  /app/myUpdates:
+    get:
+      tags: [App Store]
+      summary: Get pending updates for installed apps
+      responses:
+        '200': { description: Updates available }
+
+  # ── Media & Files ─────────────────────────────────────────────────────────────
+  /image:
+    get:
+      tags: [Media & Files]
+      summary: Get image
+      responses:
+        '200': { description: Image data }
+
+  /photo:
+    get:
+      tags: [Media & Files]
+      summary: Get photo
+      responses:
+        '200': { description: Photo data }
+
+  /token/download:
+    get:
+      tags: [Media & Files]
+      summary: Get download token
+      responses:
+        '200': { description: Download token }
+
+  /token/download/v2:
+    get:
+      tags: [Media & Files]
+      summary: Get download token v2
+      responses:
+        '200': { description: Download token }
+
+  /file/upload:
+    post:
+      tags: [Media & Files]
+      summary: Upload file
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200': { description: Upload result }
+
+  /share_image:
+    post:
+      tags: [Media & Files]
+      summary: Share image
+      responses:
+        '200': { description: Share link }
+
+  /token/pic/transfer:
+    post:
+      tags: [Media & Files]
+      summary: Get picture transfer token
+      responses:
+        '200': { description: Transfer token }
+
+  /token/uploadNew/{spaceType}:
+    post:
+      tags: [Media & Files]
+      summary: Get upload token for space type
+      parameters:
+        - { name: spaceType, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Upload token }
+
+  /token/video/transfer:
+    post:
+      tags: [Media & Files]
+      summary: Get video transfer token
+      responses:
+        '200': { description: Transfer token }
+
+  # ── Version & OTA ─────────────────────────────────────────────────────────────
+  /version/latest:
+    get:
+      tags: [Version & OTA]
+      summary: Get latest app/firmware version
+      responses:
+        '200': { description: Version info }
+
+  /version/releaseNote:
+    get:
+      tags: [Version & OTA]
+      summary: Get release notes
+      responses:
+        '200': { description: Release notes }
+
+  /version/getVersionTips:
+    get:
+      tags: [Version & OTA]
+      summary: Get version update tips/message
+      responses:
+        '200': { description: Version tips }
+
+  /version/4G/latest:
+    get:
+      tags: [Version & OTA]
+      summary: Get latest 4G module firmware version
+      responses:
+        '200': { description: 4G version }
+
+  /versionAuthorization:
+    get:
+      tags: [Version & OTA]
+      summary: Get version authorization info
+      responses:
+        '200': { description: Authorization }
+
+  /versionAuthorization/4G:
+    get:
+      tags: [Version & OTA]
+      summary: Get 4G version authorization
+      responses:
+        '200': { description: 4G authorization }
+
+  # ── Payment ───────────────────────────────────────────────────────────────────
+  /pay-service/amountLimit/get:
+    get:
+      tags: [Payment]
+      summary: Get payment amount limits
+      responses:
+        '200': { description: Amount limits }
+
+  /pay-service/orderRecord/info:
+    get:
+      tags: [Payment]
+      summary: Get payment order details
+      responses:
+        '200': { description: Order info }
+
+  /pay-service/orderRecord/list:
+    get:
+      tags: [Payment]
+      summary: List payment orders
+      responses:
+        '200': { description: Order list }
+
+  /pay-service/amountLimit/update:
+    post:
+      tags: [Payment]
+      summary: Update amount limit
+      responses:
+        '200': { description: Limit updated }
+
+  /pay-service/client/appPayPre:
+    post:
+      tags: [Payment]
+      summary: Pre-create app payment order
+      responses:
+        '200': { description: Pre-order created }
+
+  /pay-service/payComment/add:
+    post:
+      tags: [Payment]
+      summary: Add payment comment/feedback
+      responses:
+        '200': { description: Comment added }
+
+  # ── Operations & Rewards ──────────────────────────────────────────────────────
+  /operation/paradiseTask/list:
+    get:
+      tags: [Operations & Rewards]
+      summary: List reward tasks
+      responses:
+        '200': { description: Task list }
+
+  /operation/score/ruleInfo:
+    get:
+      tags: [Operations & Rewards]
+      summary: Get scoring rules
+      responses:
+        '200': { description: Score rules }
+
+  /operation/square/label:
+    get:
+      tags: [Operations & Rewards]
+      summary: Get square activity labels
+      responses:
+        '200': { description: Labels }
+
+  /operation/paradiseTask/perform:
+    post:
+      tags: [Operations & Rewards]
+      summary: Complete/perform a reward task
+      responses:
+        '200': { description: Task performed }
+
+  /score/addIntegral:
+    post:
+      tags: [Operations & Rewards]
+      summary: Add integral points
+      responses:
+        '200': { description: Points added }
+
+  # ── Social ────────────────────────────────────────────────────────────────────
+  /social-service/content/query:
+    get:
+      tags: [Social]
+      summary: Query social content feed
+      responses:
+        '200': { description: Content feed }
+
+  /social-service/userHabit/init:
+    post:
+      tags: [Social]
+      summary: Initialize user habit tracking
+      responses:
+        '200': { description: Initialized }
+
+  # ── Time Memory ───────────────────────────────────────────────────────────────
+  /timememory-service/bgInfo/info:
+    get:
+      tags: [Time Memory]
+      summary: Get time memory background info
+      responses:
+        '200': { description: Background info }
+
+  /timememory-service/file/fetch:
+    get:
+      tags: [Time Memory]
+      summary: Fetch time memory file
+      responses:
+        '200': { description: File data }
+
+  # ── Watch Data ────────────────────────────────────────────────────────────────
+  /watchData/getData:
+    get:
+      tags: [Watch Data]
+      summary: Get raw watch sensor data
+      responses:
+        '200': { description: Sensor data }
+
+  /watchData/lowDataMode:
+    post:
+      tags: [Watch Data]
+      summary: Set low data mode
+      responses:
+        '200': { description: Mode set }
+
+  /watchData/update:
+    post:
+      tags: [Watch Data]
+      summary: Push watch data update
+      responses:
+        '200': { description: Updated }
+
+  /dataPipeline/uploadData:
+    post:
+      tags: [Watch Data]
+      summary: Upload data via pipeline
+      responses:
+        '200': { description: Uploaded }
+
+  # ── Data Migration ────────────────────────────────────────────────────────────
+  /datamigration/geniusAccount:
+    get:
+      tags: [Data Migration]
+      summary: Get genius account migration status
+      responses:
+        '200': { description: Migration status }
+
+  /dialogaccount/merge/accounts:
+    post:
+      tags: [Data Migration]
+      summary: Merge two accounts
+      responses:
+        '200': { description: Accounts merged }
+
+  /imAccount/exit/{watchId}:
+    post:
+      tags: [Data Migration]
+      summary: Exit IM account from watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Exited }
+
+  /imAccount/merge/accounts:
+    post:
+      tags: [Data Migration]
+      summary: Merge IM accounts
+      responses:
+        '200': { description: Merged }
+
+  # ── Logging ───────────────────────────────────────────────────────────────────
+  /log/collect/strategy/get:
+    get:
+      tags: [Logging]
+      summary: Get log collection strategy
+      responses:
+        '200': { description: Strategy }
+
+  /log/collect/add:
+    post:
+      tags: [Logging]
+      summary: Submit client log batch
+      responses:
+        '200': { description: Logs accepted }
+
+  # ── Server Config ─────────────────────────────────────────────────────────────
+  /server/domain/list:
+    get:
+      tags: [Server Config]
+      summary: Get domain list for dynamic server selection
+      responses:
+        '200': { description: Domain list }
+
+  /server/getIncrH5Url/{version}:
+    get:
+      tags: [Server Config]
+      summary: Get incremental H5 URL for given version
+      parameters:
+        - { name: version, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: H5 URL }
+
+  /switch/getStoreSwitch:
+    get:
+      tags: [Server Config]
+      summary: Get feature store switch states
+      responses:
+        '200': { description: Feature switches }
+
+  /base-service/config/fullFetch:
+    get:
+      tags: [Server Config]
+      summary: Full fetch of base configuration
+      responses:
+        '200': { description: Full config }
+
+  /base-service/config/getUpdate:
+    get:
+      tags: [Server Config]
+      summary: Get config delta/update
+      responses:
+        '200': { description: Config update }
+
+  /base-service/apn/push:
+    post:
+      tags: [Server Config]
+      summary: Push APN configuration
+      responses:
+        '200': { description: APN pushed }
+
+  /iot-service/config/getH5Url:
+    get:
+      tags: [Server Config]
+      summary: Get IoT service H5 URL
+      responses:
+        '200': { description: H5 URL }
+
+  # ── Watch Settings (/smartwatch/) ─────────────────────────────────────────────
+  /smartwatch/server/getH5Url:
+    get:
+      tags: [Watch Settings]
+      summary: Get H5 web app URL
+      responses:
+        '200': { description: H5 URL }
+
+  /smartwatch/constant/getStartPageParams:
+    get:
+      tags: [Watch Settings]
+      summary: Get start page parameters
+      responses:
+        '200': { description: Start params }
+
+  /smartwatch/globalTimeZone/getAll:
+    get:
+      tags: [Watch Settings]
+      summary: Get all supported time zones
+      responses:
+        '200': { description: Time zone list }
+
+  /smartwatch/notice/hasnew:
+    get:
+      tags: [Watch Settings]
+      summary: Check for new smartwatch notices
+      responses:
+        '200': { description: New notice flag }
+
+  /smartwatch/notice/updates/new/{watchId}:
+    get:
+      tags: [Watch Settings]
+      summary: Get new update notices for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Update notices }
+
+  /smartwatch/activitypush/getPushVO/{pushId}:
+    get:
+      tags: [Watch Settings]
+      summary: Get activity push value object
+      parameters:
+        - { name: pushId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Push VO }
+
+  /smartwatch/appshare/getUrlResourceByModel/{model}:
+    get:
+      tags: [Watch Settings]
+      summary: Get sharing URL resource for watch model
+      parameters:
+        - { name: model, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: URL resource }
+
+  /smartwatch/authorize/batchGetAuthorize:
+    get:
+      tags: [Watch Settings]
+      summary: Batch get authorizations
+      responses:
+        '200': { description: Authorization list }
+
+  /smartwatch/authorize/getAuthorize:
+    get:
+      tags: [Watch Settings]
+      summary: Get single authorization
+      responses:
+        '200': { description: Authorization }
+
+  /smartwatch/authorize/getAuthorizesByWatchId:
+    get:
+      tags: [Watch Settings]
+      summary: Get authorizations by watch ID
+      responses:
+        '200': { description: Authorization list }
+
+  /smartwatch/authorize/getAuthorizesByWatchIdAndMobileId:
+    get:
+      tags: [Watch Settings]
+      summary: Get authorizations by watch and mobile ID
+      responses:
+        '200': { description: Authorization list }
+
+  /smartwatch/authorize/batchUpdate:
+    post:
+      tags: [Watch Settings]
+      summary: Batch update authorizations
+      responses:
+        '200': { description: Updated }
+
+  /smartwatch/authorize/update:
+    post:
+      tags: [Watch Settings]
+      summary: Update single authorization
+      responses:
+        '200': { description: Updated }
+
+  /smartwatch/contact/getContactsForApp:
+    get:
+      tags: [Watch Settings]
+      summary: Get contacts formatted for app display
+      responses:
+        '200': { description: Contact list }
+
+  /smartwatch/contact/batchUpdateBindContact:
+    post:
+      tags: [Watch Settings]
+      summary: Batch update bound contacts
+      responses:
+        '200': { description: Updated }
+
+  /smartwatch/contact/updateCallAuth:
+    post:
+      tags: [Watch Settings]
+      summary: Update call authorization for contact
+      responses:
+        '200': { description: Auth updated }
+
+  /smartwatch/datamigration/getMigrationTips:
+    get:
+      tags: [Watch Settings]
+      summary: Get data migration guidance
+      responses:
+        '200': { description: Migration tips }
+
+  /smartwatch/datamigration/checkRandCodeByNoAdmin:
+    get:
+      tags: [Watch Settings]
+      summary: Check verification code for non-admin migration
+      responses:
+        '200': { description: Verification result }
+
+  /smartwatch/datamigration/apply/agree:
+    post:
+      tags: [Watch Settings]
+      summary: Agree to migration application
+      responses:
+        '200': { description: Agreed }
+
+  /smartwatch/datamigration/sendRandCodeByNoAdmin:
+    post:
+      tags: [Watch Settings]
+      summary: Send verification code for non-admin migration
+      responses:
+        '200': { description: Code sent }
+
+  /smartwatch/geniusAccount/getAllDetailGeniusAccount:
+    get:
+      tags: [Watch Settings]
+      summary: Get detailed list of all genius accounts
+      responses:
+        '200': { description: Account details }
+
+  /smartwatch/geniusAccount/getNoBindGeniusAccount:
+    get:
+      tags: [Watch Settings]
+      summary: Get genius accounts not yet bound to a watch
+      responses:
+        '200': { description: Unbound accounts }
+
+  /smartwatch/markLocation:
+    get:
+      tags: [Watch Settings]
+      summary: Get saved mark locations
+      responses:
+        '200': { description: Mark locations }
+
+  /smartwatch/markLocation/checkCode:
+    get:
+      tags: [Watch Settings]
+      summary: Check mark location code
+      responses:
+        '200': { description: Code result }
+
+  /smartwatch/markLocation/getMarkLocationNameType:
+    get:
+      tags: [Watch Settings]
+      summary: Get available mark location name types
+      responses:
+        '200': { description: Name types }
+
+  /smartwatch/markLocation/{watchId}:
+    get:
+      tags: [Watch Settings]
+      summary: Get mark locations for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Mark locations }
+
+  /smartwatch/markLocation/{watchId}/{addressId}:
+    get:
+      tags: [Watch Settings]
+      summary: Get specific mark location for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+        - { name: addressId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Mark location }
+
+  /smartwatch/mobileinit/notice:
+    post:
+      tags: [Watch Settings]
+      summary: Send mobile init notice
+      responses:
+        '200': { description: Notice sent }
+
+  /smartwatch/mobileswitch:
+    get:
+      tags: [Watch Settings]
+      summary: Get mobile switch states
+      responses:
+        '200': { description: Switch states }
+
+  /smartwatch/mobileswitch/{watchId}/{type}:
+    get:
+      tags: [Watch Settings]
+      summary: Get specific mobile switch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+        - { name: type, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Switch state }
+
+  /smartwatch/mobilewatch:
+    get:
+      tags: [Watch Settings]
+      summary: Get mobile-watch binding details
+      responses:
+        '200': { description: Binding info }
+
+  /smartwatch/mobilewatch/apply/admin:
+    post:
+      tags: [Watch Settings]
+      summary: Apply to become admin
+      responses:
+        '200': { description: Application sent }
+
+  /smartwatch/mobilewatch/apply/admin/refuse:
+    post:
+      tags: [Watch Settings]
+      summary: Refuse admin application
+      responses:
+        '200': { description: Refused }
+
+  /smartwatch/mobilewatch/dismissFamily:
+    post:
+      tags: [Watch Settings]
+      summary: Dismiss family group
+      responses:
+        '200': { description: Family dismissed }
+
+  /smartwatch/mobilewatch/deleteHistoryBindRecord:
+    delete:
+      tags: [Watch Settings]
+      summary: Delete historical bind records
+      responses:
+        '200': { description: Deleted }
+
+  /smartwatch/modifyLocation/query:
+    get:
+      tags: [Watch Settings]
+      summary: Query location modification requests
+      responses:
+        '200': { description: Modification list }
+
+  /smartwatch/modifyLocation/delete:
+    delete:
+      tags: [Watch Settings]
+      summary: Delete location modification
+      responses:
+        '200': { description: Deleted }
+
+  /smartwatch/navigation/getContrail:
+    get:
+      tags: [Watch Settings]
+      summary: Get navigation contrail data
+      responses:
+        '200': { description: Contrail data }
+
+  /smartwatch/navigation/getState:
+    get:
+      tags: [Watch Settings]
+      summary: Get navigation state
+      responses:
+        '200': { description: Navigation state }
+
+  /smartwatch/outdoorActivities/getDetail:
+    get:
+      tags: [Watch Settings]
+      summary: Get outdoor activity details
+      description: May expose richer health/activity data than the app UI shows.
+      responses:
+        '200': { description: Activity details }
+
+  /smartwatch/picture:
+    get:
+      tags: [Watch Settings]
+      summary: Get watch picture/avatar
+      responses:
+        '200': { description: Picture data }
+
+  /smartwatch/smscenter/getOperator:
+    get:
+      tags: [Watch Settings]
+      summary: Get SMS center operator info
+      responses:
+        '200': { description: Operator info }
+
+  /smartwatch/tagging/correctLocation:
+    post:
+      tags: [Watch Settings]
+      summary: Submit location correction
+      responses:
+        '200': { description: Correction submitted }
+
+  /smartwatch/userCorrect/getPicKey:
+    get:
+      tags: [Watch Settings]
+      summary: Get picture key for user correction
+      responses:
+        '200': { description: Pic key }
+
+  /smartwatch/userCorrect/recordList:
+    get:
+      tags: [Watch Settings]
+      summary: List user correction records
+      responses:
+        '200': { description: Record list }
+
+  /smartwatch/userCorrect/confirm:
+    post:
+      tags: [Watch Settings]
+      summary: Confirm location correction
+      responses:
+        '200': { description: Confirmed }
+
+  /smartwatch/userCorrect/submit:
+    post:
+      tags: [Watch Settings]
+      summary: Submit location correction
+      responses:
+        '200': { description: Submitted }
+
+  /smartwatch/userCorrect/deleteRecord:
+    delete:
+      tags: [Watch Settings]
+      summary: Delete correction record
+      responses:
+        '200': { description: Deleted }
+
+  /smartwatch/watchaccount/bindnumber:
+    post:
+      tags: [Watch Settings]
+      summary: Bind phone number to watch account
+      responses:
+        '200': { description: Number bound }
+
+  /smartwatch/watchaccount/getUpdateBirthdayCount/{watchId}:
+    get:
+      tags: [Watch Settings]
+      summary: Get birthday update count for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Count }
+
+  /smartwatch/watchaccount/getWatchTimeZoneV2/{watchId}:
+    get:
+      tags: [Watch Settings]
+      summary: Get watch time zone v2
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Time zone }
+
+  /smartwatch/watchaccount/soundMode/setSoundMode:
+    post:
+      tags: [Watch Settings]
+      summary: Set sound mode (via smartwatch prefix)
+      responses:
+        '200': { description: Mode set }
+
+  /smartwatch/watchaccount/soundMode/{watchId}:
+    get:
+      tags: [Watch Settings]
+      summary: Get sound mode (via smartwatch prefix)
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Sound mode }
+
+  /smartwatch/watchaccount/updateRealName:
+    post:
+      tags: [Watch Settings]
+      summary: Update real name (via smartwatch prefix)
+      responses:
+        '200': { description: Updated }
+
+  /smartwatch/watchaccount/update/watchAttribute:
+    post:
+      tags: [Watch Settings]
+      summary: Update watch attributes (via smartwatch prefix)
+      responses:
+        '200': { description: Updated }
+
+  /smartwatch/watchNotes/deleteById:
+    delete:
+      tags: [Watch Settings]
+      summary: Delete watch note by ID
+      responses:
+        '200': { description: Note deleted }
+
+  # ── Location API ──────────────────────────────────────────────────────────────
+  /location/{watchId}:
+    get:
+      tags: [Location]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get current location for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Location coordinates and metadata }
+
+  /location/multilocation:
+    get:
+      tags: [Location]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get location for multiple watches
+      responses:
+        '200': { description: Multi-watch locations }
+
+  /location/motionstate/{watchId}:
+    get:
+      tags: [Location]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get motion state (still/walking/running) for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Motion state }
+
+  /location/addressFeedback:
+    post:
+      tags: [Location]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Submit address feedback/correction
+      responses:
+        '200': { description: Feedback received }
+
+  /sub/latestLocationPush:
+    get:
+      tags: [Location]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get latest pushed location
+      responses:
+        '200': { description: Latest location }
+
+  /realtime/upload:
+    post:
+      tags: [Location]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Upload real-time location data
+      responses:
+        '200': { description: Uploaded }
+
+  /realtimeDisable/{watchId}:
+    post:
+      tags: [Location]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Disable real-time tracking for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Tracking disabled }
+
+  /realtimeDisable/end/{watchId}:
+    delete:
+      tags: [Location]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: End real-time disable (re-enable tracking)
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Tracking re-enabled }
+
+  # ── Trail & Contrail ──────────────────────────────────────────────────────────
+  /contrail/destination:
+    get:
+      tags: [Trail & Contrail]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get contrail destination
+      responses:
+        '200': { description: Destination info }
+
+  /contrail/getActivePoints:
+    get:
+      tags: [Trail & Contrail]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get active contrail points
+      responses:
+        '200': { description: Active points }
+
+  /contrail/getRealContrail:
+    get:
+      tags: [Trail & Contrail]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get real contrail data
+      responses:
+        '200': { description: Contrail path }
+
+  /contrail/inRidingFlag:
+    get:
+      tags: [Trail & Contrail]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Check if watch is currently in riding mode
+      responses:
+        '200': { description: Riding flag }
+
+  /contrail/queryData:
+    get:
+      tags: [Trail & Contrail]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Query historical contrail data
+      parameters:
+        - { name: watchId, in: query, schema: { type: string } }
+        - { name: startTime, in: query, schema: { type: integer } }
+        - { name: endTime, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: Historical trail data }
+
+  /contrail/queryRiding:
+    get:
+      tags: [Trail & Contrail]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Query riding trail data
+      responses:
+        '200': { description: Riding contrail }
+
+  /schoolRegular/getShowContrail:
+    get:
+      tags: [Trail & Contrail]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get school route contrail for display
+      responses:
+        '200': { description: School contrail }
+
+  # ── All-Day Guard ──────────────────────────────────────────────────────────────
+  /allDayGuard/queryGuardStatus:
+    get:
+      tags: [All-Day Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get all-day guard status
+      responses:
+        '200': { description: Guard status }
+
+  /allDayGuard/queryCommonArea:
+    get:
+      tags: [All-Day Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get safe (common) areas
+      responses:
+        '200': { description: Safe areas }
+
+  /allDayGuard/queryDangerArea:
+    get:
+      tags: [All-Day Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get danger areas
+      responses:
+        '200': { description: Danger areas }
+
+  /allDayGuard/getPicKey:
+    get:
+      tags: [All-Day Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get picture key for guard map
+      responses:
+        '200': { description: Pic key }
+
+  /allDayGuard/addCommonArea:
+    post:
+      tags: [All-Day Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Add safe area
+      responses:
+        '200': { description: Area added }
+
+  /allDayGuard/addDangerArea:
+    post:
+      tags: [All-Day Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Add danger area
+      responses:
+        '200': { description: Area added }
+
+  /allDayGuard/updateCommonArea:
+    put:
+      tags: [All-Day Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Update safe area
+      responses:
+        '200': { description: Updated }
+
+  /allDayGuard/updateDangerArea:
+    put:
+      tags: [All-Day Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Update danger area
+      responses:
+        '200': { description: Updated }
+
+  /allDayGuard/delCommonArea:
+    delete:
+      tags: [All-Day Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Delete safe area
+      responses:
+        '200': { description: Deleted }
+
+  /allDayGuard/delDangerArea:
+    delete:
+      tags: [All-Day Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Delete danger area
+      responses:
+        '200': { description: Deleted }
+
+  # ── All-Day Guard v2 ───────────────────────────────────────────────────────────
+  /allDayGuard2/queryGuardStatus:
+    get:
+      tags: [All-Day Guard v2]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get guard status v2
+      responses:
+        '200': { description: Guard status }
+
+  /allDayGuard2/queryGuardCount:
+    get:
+      tags: [All-Day Guard v2]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get guard event count
+      responses:
+        '200': { description: Guard count }
+
+  /allDayGuard2/queryGuardDetail:
+    get:
+      tags: [All-Day Guard v2]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get guard event details
+      responses:
+        '200': { description: Guard details }
+
+  /allDayGuard2/queryLineFeedback:
+    get:
+      tags: [All-Day Guard v2]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get route feedback events
+      responses:
+        '200': { description: Line feedback }
+
+  /allDayGuard2/unionState:
+    get:
+      tags: [All-Day Guard v2]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get combined guard union state
+      responses:
+        '200': { description: Union state }
+
+  /allDayGuard2/finishTraceByApp:
+    post:
+      tags: [All-Day Guard v2]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: End trace session from app
+      responses:
+        '200': { description: Trace ended }
+
+  # ── Combined Guard ─────────────────────────────────────────────────────────────
+  /allguard/get:
+    get:
+      tags: [Combined Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get combined guard config
+      responses:
+        '200': { description: Guard config }
+
+  /allguard/orderswitch:
+    post:
+      tags: [Combined Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Toggle combined guard mode
+      responses:
+        '200': { description: Switch toggled }
+
+  # ── Follow Guard ───────────────────────────────────────────────────────────────
+  /followGuard/heartbeatCheck:
+    post:
+      tags: [Follow Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Send heartbeat during follow guard session
+      responses:
+        '200': { description: Heartbeat acknowledged }
+
+  /followGuard/startGuard:
+    post:
+      tags: [Follow Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Start follow guard session
+      responses:
+        '200': { description: Guard started }
+
+  /followGuard/updateGuardState:
+    put:
+      tags: [Follow Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Update follow guard state
+      responses:
+        '200': { description: State updated }
+
+  # ── Holiday Guard ──────────────────────────────────────────────────────────────
+  /holidayguard/{holidayGuardId}:
+    get:
+      tags: [Holiday Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get holiday guard by ID
+      parameters:
+        - { name: holidayGuardId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Holiday guard config }
+
+  /holidayguard/watchid/{watchId}:
+    get:
+      tags: [Holiday Guard]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get holiday guard for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Holiday guard }
+
+  # ── Mark Locations ─────────────────────────────────────────────────────────────
+  /markLocation:
+    get:
+      tags: [Mark Locations]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get all mark locations
+      responses:
+        '200': { description: Mark locations }
+
+  /markLocation/{watchId}:
+    get:
+      tags: [Mark Locations]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get mark locations for watch
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Mark locations }
+
+  /markLocation/{watchId}/{addressId}:
+    get:
+      tags: [Mark Locations]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get specific mark location
+      parameters:
+        - { name: watchId, in: path, required: true, schema: { type: string } }
+        - { name: addressId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Mark location }
+
+  /markLocation/checkCode:
+    post:
+      tags: [Mark Locations]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Check mark location code
+      responses:
+        '200': { description: Code result }
+
+  /modifyLocation/query:
+    get:
+      tags: [Mark Locations]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Query location modification requests
+      responses:
+        '200': { description: Modifications }
+
+  /modifyLocation/delete:
+    delete:
+      tags: [Mark Locations]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Delete location modification
+      responses:
+        '200': { description: Deleted }
+
+  # ── Indoor & 3D ────────────────────────────────────────────────────────────────
+  /steric/getContrail:
+    get:
+      tags: [Indoor & 3D]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get indoor contrail data
+      responses:
+        '200': { description: Indoor trail }
+
+  /steric/getContrailState:
+    get:
+      tags: [Indoor & 3D]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get indoor contrail state
+      responses:
+        '200': { description: Contrail state }
+
+  /steric/getRealTimeTrack:
+    get:
+      tags: [Indoor & 3D]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get real-time indoor track
+      responses:
+        '200': { description: Indoor track }
+
+  /steric/queryBuildingGuard:
+    get:
+      tags: [Indoor & 3D]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Query building guard status
+      responses:
+        '200': { description: Building guard }
+
+  /steric/modifyFloor:
+    post:
+      tags: [Indoor & 3D]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Modify floor assignment
+      responses:
+        '200': { description: Floor modified }
+
+  /steric/orderBuildingGuard:
+    post:
+      tags: [Indoor & 3D]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Order building guard mode
+      responses:
+        '200': { description: Guard ordered }
+
+  /steric/tracking:
+    post:
+      tags: [Indoor & 3D]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Push indoor tracking data
+      responses:
+        '200': { description: Tracking updated }
+
+  # ── Location Tagging ───────────────────────────────────────────────────────────
+  /tagging/locationStrategy:
+    get:
+      tags: [Location Tagging]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get location tagging strategy config
+      responses:
+        '200': { description: Strategy }
+
+  /tagging/recommend:
+    get:
+      tags: [Location Tagging]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get recommended location tags
+      responses:
+        '200': { description: Recommendations }
+
+  /tagging/correctLocation:
+    post:
+      tags: [Location Tagging]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Submit location tag correction
+      responses:
+        '200': { description: Correction submitted }
+
+  /tagging/cancel:
+    post:
+      tags: [Location Tagging]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Cancel location tagging
+      responses:
+        '200': { description: Cancelled }
+
+  /subway/showData/{id}:
+    get:
+      tags: [Location Tagging]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get subway/transit location data
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Subway data }
+
+  /watchOffLocation/getLocations:
+    get:
+      tags: [Location Tagging]
+      servers:
+        - url: https://location.watch.okii.com
+      summary: Get off-location events (watch left safe zone)
+      responses:
+        '200': { description: Off-location events }
+
+  # ── Health ────────────────────────────────────────────────────────────────────
+  /sport-service/health/i32/home:
+    get:
+      tags: [Health]
+      servers:
+        - url: https://sport.watch.okii.com
+      summary: Get health home screen data (i32 model)
+      description: Returns health summary for the home screen. The `i32` suffix likely indicates a device model class.
+      responses:
+        '200': { description: Health home data }
+
+  /sport-service/health/nd01/home:
+    get:
+      tags: [Health]
+      servers:
+        - url: https://sport.watch.okii.com
+      summary: Get health home screen data (nd01 model)
+      description: Returns health summary for the home screen. The `nd01` suffix likely indicates a device model class.
+      responses:
+        '200': { description: Health home data }
+
+  /flutterSport:
+    get:
+      tags: [Health]
+      servers:
+        - url: https://sport.watch.okii.com
+      summary: Get sport data via Flutter bridge
+      responses:
+        '200': { description: Sport data }
+
+  # ── Chat Messaging ─────────────────────────────────────────────────────────────
+  /weichat/emoji:
+    get:
+      tags: [Chat Messaging]
+      servers:
+        - url: https://chat.watch.okii.com
+      summary: Get available emoji list
+      responses:
+        '200': { description: Emoji list }
+
+  /weichat/voice:
+    post:
+      tags: [Chat Messaging]
+      servers:
+        - url: https://chat.watch.okii.com
+      summary: Send voice message
+      responses:
+        '200': { description: Voice message sent }
+
+  # ── Points ────────────────────────────────────────────────────────────────────
+  /operation/paradiseTask/list:
+    get:
+      tags: [Points]
+      servers:
+        - url: https://points.okii.com
+      summary: List reward tasks (points service)
+      responses:
+        '200': { description: Task list }
+
+  /operation/score/ruleInfo:
+    get:
+      tags: [Points]
+      servers:
+        - url: https://points.okii.com
+      summary: Get score rules
+      responses:
+        '200': { description: Score rules }
+
+  /operation/square/label:
+    get:
+      tags: [Points]
+      servers:
+        - url: https://points.okii.com
+      summary: Get square labels
+      responses:
+        '200': { description: Labels }
+
+  /score/addIntegral:
+    post:
+      tags: [Points]
+      servers:
+        - url: https://points.okii.com
+      summary: Add integral points to account
+      responses:
+        '200': { description: Points added }
+
+  /operation/paradiseTask/perform:
+    post:
+      tags: [Points]
+      servers:
+        - url: https://points.okii.com
+      summary: Perform reward task (points service)
+      responses:
+        '200': { description: Task performed }
+
+  # ── CDN ───────────────────────────────────────────────────────────────────────
+  /announce.json:
+    get:
+      tags: [CDN]
+      servers:
+        - url: https://watchcdn.okii.com
+      summary: Get app announcements
+      security: []
+      responses:
+        '200': { description: Announcement JSON }
+
+  /announce-test.json:
+    get:
+      tags: [CDN]
+      servers:
+        - url: https://watchcdn.okii.com
+      summary: Get test announcements
+      security: []
+      responses:
+        '200': { description: Test announcement JSON }
+
+  /demo-app/back-360-750.mp4:
+    get:
+      tags: [CDN]
+      servers:
+        - url: https://watchcdn.okii.com
+      summary: Demo app back video (360×750)
+      security: []
+      responses:
+        '200': { description: MP4 video, content: { video/mp4: {} } }
+
+  /demo-app/front-240-300.mp4:
+    get:
+      tags: [CDN]
+      servers:
+        - url: https://watchcdn.okii.com
+      summary: Demo app front video (240×300)
+      security: []
+      responses:
+        '200': { description: MP4 video, content: { video/mp4: {} } }
+
+  /demo-app/front-360-750.mp4:
+    get:
+      tags: [CDN]
+      servers:
+        - url: https://watchcdn.okii.com
+      summary: Demo app front video (360×750)
+      security: []
+      responses:
+        '200': { description: MP4 video, content: { video/mp4: {} } }
