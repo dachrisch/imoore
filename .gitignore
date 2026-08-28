@@ -1,0 +1,4 @@
+*.apk
+
+# node deps (installed via npm install)
+prototype/node_modules/

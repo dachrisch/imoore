@@ -3,7 +3,7 @@
 ## Base API URL
 
 ```
-https://api.watch.okii.com
+https://watch.okii.com
 ```
 
 ## Login Methods

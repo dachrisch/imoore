@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>imoore prototype — imoo Watch</title>
+  <style>
+    :root { --bg:#0f1115; --panel:#1a1d24; --accent:#4f8cff; --line:#2a2e37; --txt:#e6e8ec; --muted:#8b93a1; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--txt); }
+    header { padding:12px 16px; border-bottom:1px solid var(--line); font-weight:600; }
+    .warn { background:#3a2a00; color:#ffd479; padding:8px 16px; font-size:12px; border-bottom:1px solid var(--line); }
+    main { max-width:920px; margin:0 auto; padding:16px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+    label { display:block; font-size:12px; color:var(--muted); margin:8px 0 4px; }
+    input, select, textarea, button { width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:#0f1115; color:var(--txt); font:inherit; }
+    .row { display:flex; gap:8px; }
+    .row > * { flex:1; }
+    button { background:var(--accent); border:none; color:#fff; font-weight:600; cursor:pointer; margin-top:12px; }
+    button.secondary { background:#2a2e37; }
+    pre { background:#0b0d11; border:1px solid var(--line); border-radius:8px; padding:10px; overflow:auto; max-height:320px; font-size:12px; }
+    .hidden { display:none; }
+    .tag { display:inline-block; font-size:11px; padding:2px 6px; border-radius:6px; background:#2a2e37; color:var(--muted); margin-left:6px; }
+    .msg { padding:6px 10px; border-radius:8px; background:#0f1115; border:1px solid var(--line); margin:6px 0; }
+    h3 { margin:0 0 8px; font-size:14px; }
+  </style>
+</head>
+<body>
+  <header>imoore prototype <span style="color:var(--muted);font-weight:400">· imoo Watch login + chat (live API)</span></header>
+  <div class="warn">⚠ Methods/schemas are reverse-engineered inferences. The auth header name is <b>unconfirmed</b>. Expect failures — raw server responses are shown so you can discover the real shapes.</div>
+  <main>
+    <!-- LOGIN -->
+    <div class="card" id="loginCard">
+      <h3>Login — SMS OTP</h3>
+      <div class="row">
+        <div>
+          <label>Area code (no +)</label>
+          <input id="areaCode" value="86" />
+        </div>
+        <div style="flex:3">
+          <label>Mobile phone</label>
+          <input id="mobilePhone" placeholder="e.g. 13612345678" />
+        </div>
+      </div>
+      <button id="btnCode">1 · Send code</button>
+      <div id="codeStatus" style="margin-top:8px"></div>
+
+      <label style="margin-top:12px">OTP code</label>
+      <input id="randcode" placeholder="6-digit code from SMS" />
+      <button id="btnVerify">2 · Verify &amp; login</button>
+      <div id="loginStatus" style="margin-top:8px"></div>
+
+      <label style="margin-top:12px">Session token (auto-filled)</label>
+      <input id="token" placeholder="set after verify" />
+    </div>
+
+    <!-- CHAT -->
+    <div class="card hidden" id="chatCard">
+      <h3>Chat <span class="tag">inferred</span></h3>
+      <div class="row">
+        <button class="secondary" id="btnWatches">Load watches</button>
+        <button class="secondary" id="btnGroups">Load family groups</button>
+        <button class="secondary" id="btnMembers">Load members</button>
+      </div>
+      <div id="chatOut"></div>
+
+      <h3 style="margin-top:16px">Send to chat host</h3>
+      <div class="row">
+        <div style="flex:2">
+          <label>Method</label>
+          <select id="sendMethod"><option>POST</option><option>GET</option><option>PUT</option><option>DELETE</option></select>
+        </div>
+        <div style="flex:5">
+          <label>Path</label>
+          <input id="sendPath" value="/weichat/voice" />
+        </div>
+      </div>
+      <label>JSON body</label>
+      <textarea id="sendBody" rows="5">{ "watchId": "", "content": "hello from prototype" }</textarea>
+      <button id="btnSend">Send</button>
+      <pre id="sendOut" class="hidden"></pre>
+    </div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

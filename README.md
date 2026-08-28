@@ -10,12 +10,12 @@ Reverse-engineered REST API reference for the **imoo Watch** companion app (`com
 
 | Service | Base URL | Description |
 |---|---|---|
-| Core API | `https://api.watch.okii.com` | Auth, account, contacts, app store, settings, payments |
+| Core API | `https://watch.okii.com` | Auth, account, contacts, app store, settings, payments |
 | Location API | `https://location.watch.okii.com` | Real-time tracking, trails, guard modes, geofencing |
 | Health & Sport | `https://sport.watch.okii.com` | Health summary, sport data |
 | Chat | `https://chat.watch.okii.com` | Messaging, voice, video calls |
 | Points | `https://points.okii.com` | Points, reward tasks |
-| CDN | `https://watchcdn.okii.com` | Announcements, media assets |
+| CDN | `https://watch.okii.com` | Announcements, media assets |
 
 International region mirrors exist at `*-oz.okii.com` (e.g. `api-oz.okii.com`).
 

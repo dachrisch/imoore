@@ -12,7 +12,9 @@ Reverse-engineered **OpenAPI 3.0.3** spec for the imoo Watch companion app (`com
 
 - `openapi.yaml` (~2900 lines) is the single source of truth. Everything else supports it.
 - 6 services are modelled as `servers` entries; location endpoints override `servers` per-operation with `https://location.watch.okii.com`.
-- International region mirrors exist at `*-oz.okii.com` (e.g. `api-oz.okii.com`).
+- International region mirrors exist at `*-oz.okii.com` (e.g. `watch-oz.okii.com`).
+
+**Verified host correction:** The documented core host `api.watch.okii.com` is **wrong** — the real base is `https://watch.okii.com` (confirmed by extracting `base.apk`, running `strings` over the 12 DEX files, and probing live; `api.watch.okii.com` returns 404 for all `/app/*` paths). `watchcdn.okii.com` is also wrong; use `watch.okii.com`. Other subdomains (`location`, `sport`, `chat`, `points`) do resolve. Most paths are also reachable on the bare `watch.okii.com` host.
 
 ## How to view / validate
 

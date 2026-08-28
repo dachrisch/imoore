@@ -12,12 +12,12 @@ info:
     **Services (base URLs)**
     | Service | Host |
     |---|---|
-    | Core API | `https://api.watch.okii.com` |
+    | Core API | `https://watch.okii.com` |
     | Location API | `https://location.watch.okii.com` |
     | Health & Sport | `https://sport.watch.okii.com` |
     | Chat | `https://chat.watch.okii.com` |
     | Points & Rewards | `https://points.okii.com` |
-    | CDN | `https://watchcdn.okii.com` |
+    | CDN | `https://watch.okii.com` |
 
     **International region** mirrors exist at `*-oz.okii.com` (e.g. `api-oz.okii.com`).
 
@@ -29,7 +29,7 @@ info:
     url: https://github.com/dachrisch/imoo-watch-api
 
 servers:
-  - url: https://api.watch.okii.com
+  - url: https://watch.okii.com
     description: Core API (default)
   - url: https://location.watch.okii.com
     description: Location API
@@ -39,7 +39,7 @@ servers:
     description: Chat API
   - url: https://points.okii.com
     description: Points & Rewards API
-  - url: https://watchcdn.okii.com
+  - url: https://watch.okii.com
     description: CDN
 
 tags:
@@ -147,8 +147,8 @@ tags:
     x-server: https://points.okii.com
     description: "**Host:** `points.okii.com` — Points balance and reward tasks"
   - name: CDN
-    x-server: https://watchcdn.okii.com
-    description: "**Host:** `watchcdn.okii.com` — Announcement feeds and demo assets"
+    x-server: https://watch.okii.com
+    description: "**Host:** `watch.okii.com` — Announcement feeds and demo assets"
 
 # ── Shared schemas ────────────────────────────────────────────────────────────
 components:
@@ -1074,7 +1074,7 @@ paths:
     post:
       tags: [Video Calls]
       summary: Initiate video/voice call
-      description: Available on both `api.watch.okii.com` and `chat.watch.okii.com`
+      description: Available on both `watch.okii.com` and `chat.watch.okii.com`
       responses:
         '200': { description: Call initiated }
 
@@ -2881,7 +2881,7 @@ paths:
     get:
       tags: [CDN]
       servers:
-        - url: https://watchcdn.okii.com
+        - url: https://watch.okii.com
       summary: Get app announcements
       security: []
       responses:
@@ -2891,7 +2891,7 @@ paths:
     get:
       tags: [CDN]
       servers:
-        - url: https://watchcdn.okii.com
+        - url: https://watch.okii.com
       summary: Get test announcements
       security: []
       responses:
@@ -2901,7 +2901,7 @@ paths:
     get:
       tags: [CDN]
       servers:
-        - url: https://watchcdn.okii.com
+        - url: https://watch.okii.com
       summary: Demo app back video (360×750)
       security: []
       responses:
@@ -2911,7 +2911,7 @@ paths:
     get:
       tags: [CDN]
       servers:
-        - url: https://watchcdn.okii.com
+        - url: https://watch.okii.com
       summary: Demo app front video (240×300)
       security: []
       responses:
@@ -2921,7 +2921,7 @@ paths:
     get:
       tags: [CDN]
       servers:
-        - url: https://watchcdn.okii.com
+        - url: https://watch.okii.com
       summary: Demo app front video (360×750)
       security: []
       responses:
