@@ -54,7 +54,13 @@ $("btnCode").onclick = async () => {
     });
     if (r.ok) {
       randcodeKey = r.randcodeKey || "";
-      setStatus($("codeStatus"), true, "Code sent. Check the SMS, then enter it below.");
+      setStatus(
+        $("codeStatus"),
+        true,
+        r.captchaUsed
+          ? "Code sent (reCAPTCHA token fetched via bridge). Check the SMS, then enter it below."
+          : "Code sent. Check the SMS, then enter it below."
+      );
     } else {
       setStatus($("codeStatus"), false, `${r.code || "error"} — ${r.desc || r.error || "send failed"}`);
     }

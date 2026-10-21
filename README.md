@@ -44,6 +44,10 @@ cd prototype
 npm install
 npm start          # http://localhost:3000
 npm test           # offline fixtures: sign vector, timestamps, token parsing
+
+# SMS OTP send needs a reCAPTCHA token from the official app:
+# rooted phone + frida-server + `frida` Python package, then
+IMOORE_CAPTCHA_BRIDGE=1 npm start
 ```
 
 Endpoints worth knowing:
@@ -51,19 +55,24 @@ Endpoints worth knowing:
 | Route | What it does |
 |---|---|
 | `GET /api/selftest` | Live checks: `/app/rsakey`, `/rsa`, `/app/areaCodeList`, core envelope |
-| `POST /api/login/code` | `sendRandCodeV2` — sends a real SMS |
+| `POST /api/login/code` | `sendRandCodeV2` — sends a real SMS (needs the reCAPTCHA bridge) |
 | `POST /api/login/verify` | `randcodeLogin` — returns `token` + `authId` |
 | `POST /api/login/password` | `/app/loginV2` — password login, returns `token` + `authId` and the attempts-left counter on `010402` |
 | `POST /api/bind` | `/smartwatch/watchaccount/bindnumber` — bind/join with an invitation code; needs `token` |
 | `POST /api/area-codes` | Live `areaCodeList` (176 codes) |
 | `GET /api/watches`, `/api/groups`, `/api/members`, `POST /api/proxy` | Authenticated core calls (`token` + `authId`) |
 
-SMS is currently blocked at the provider for the test number
-(`sendRandCodeV2` → `010106`, documented in
-[`docs/authentication.md`](docs/authentication.md#live-status-2026-10-21)), so
-the UI also exposes **password login** via `/app/loginV2` — the password is
-plaintext inside the AES envelope, and `/app/login2` is legacy. Family-invite
-"coupling codes" are not login credentials
+SMS OTP is captcha-gated: `sendRandCodeV2` needs `captchaId` =
+`com.recaptcha.id.app.imoo` and `validate` = a Google reCAPTCHA token minted by
+the official app's SDK. With a rooted phone + frida-server attached, start the
+prototype with `IMOORE_CAPTCHA_BRIDGE=1` and `/api/login/code` will fetch a
+token from the installed app. The full send + verify flow is verified live; the
+details are in
+[`docs/authentication.md`](docs/authentication.md#recaptcha-gate-required-for-otp).
+
+Password login via `/app/loginV2` remains available without the bridge (the
+password is plaintext inside the AES envelope, and `/app/login2` is legacy).
+Family-invite "coupling codes" are not login credentials
 ([`docs/account-model.md`](docs/account-model.md#joining-a-family-invitation-code)).
 
 Core calls need the token from a successful login; without one the gateway

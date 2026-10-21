@@ -38,11 +38,12 @@
     <button id="btnSelftest" class="secondary" style="width:auto;margin:0;padding:6px 10px;font-size:12px">Run self-test</button>
   </header>
   <div class="note">
-    Signing, AES/RSA encryption and the encrypted core-API envelope are implemented and verified live
-    (see <code>docs/signing-and-crypto.md</code>). The live gateway currently answers <code>010106</code>
-    ("Failed to send the verification code") for SMS on the test number, so a <strong>password login</strong>
-    (<code>/app/loginV2</code>) is provided as the fallback — see
-    <code>docs/authentication.md</code> → <em>Password Flow</em>.
+    Signing, AES/RSA and the core-API envelope are implemented and verified live.
+    SMS OTP is captcha-gated: the server needs a Google reCAPTCHA token minted by
+    the official app (<code>captchaId=com.recaptcha.id.app.imoo</code>). With the
+    rooted phone attached and <code>IMOORE_CAPTCHA_BRIDGE=1</code>,
+    <code>/api/login/code</code> fetches one automatically; otherwise password login
+    is the fallback. See <code>docs/authentication.md</code>.
   </div>
   <main>
     <div class="card hidden" id="selftestCard">

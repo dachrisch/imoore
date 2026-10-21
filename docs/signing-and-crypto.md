@@ -183,14 +183,13 @@ MD5 for the outer digest instead of SHA-256. The SMS service still answers
 `dataCenterCode: DE_FRA` (see `docs/authentication.md`), so `App-Checksum` was
 necessary but not sufficient for OTP delivery.
 
-Consequence: `sendRandCodeV2` still answers `010106` for **every** number
-(real +49, reserved US 555 / UK 7700 numbers, invalid 86 numbers) and for
-`codeType` 0 (register), 2 and 3, on both account hosts, with and without the
-valid checksum. That is an additional client risk/device check, not a
-per-number or per-region SMS delivery problem, and it also blocks
-self-registration (`/app/regist` needs an SMS `randcode`). The header stays
-opt-in (`IMOORE_SSO_CERT_DER`), and the password path (`/app/loginV2`) is the
-working login.
+Consequence: `sendRandCodeV2` answers `010106` without a Google reCAPTCHA token
+(`captchaId = com.recaptcha.id.app.imoo` + `validate`), for every number and
+`codeType`, with or without the valid checksum. `App-Checksum` was necessary
+but is not the OTP gate; see
+[`authentication.md`](authentication.md#recaptcha-gate-required-for-otp). The
+header stays opt-in (`IMOORE_SSO_CERT_DER`), and password login works without
+it.
 
 ## Core API envelope (verified live)
 

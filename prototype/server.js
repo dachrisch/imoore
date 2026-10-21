@@ -1,6 +1,7 @@
 import express from "express";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { fetchCaptchaToken, SITE_KEY } from "./src/captchaBridge.js";
 import {
   requestSmsCode,
   loginWithSmsCode,
@@ -29,7 +30,19 @@ app.post("/api/login/code", async (req, res) => {
     const { userName, mobilePhone, areaCode = "86", language = "en_US", codeType = 3 } = req.body || {};
     const phone = userName || mobilePhone;
     if (!phone) return res.status(400).json({ error: "userName (mobile number) required" });
-    const raw = await requestSmsCode({ userName: phone, areaCode, language, codeType }, SSO_HOST);
+
+    // The SMS send is captcha-gated. The official app uses Google reCAPTCHA
+    // with the site key com.recaptcha.id.app.imoo; when the rooted phone is
+    // attached, mint a token from the app's own SDK.
+    let captchaId = req.body?.captchaId || "";
+    let validate = req.body?.validate || "";
+    if (!captchaId && !validate && process.env.IMOORE_CAPTCHA_BRIDGE === "1") {
+      const c = await fetchCaptchaToken();
+      captchaId = c.siteKey;
+      validate = c.token;
+    }
+
+    const raw = await requestSmsCode({ userName: phone, areaCode, language, codeType, captchaId, validate }, SSO_HOST);
     const ok = raw.code === "000001";
     res.json({
       ok,
@@ -37,6 +50,7 @@ app.post("/api/login/code", async (req, res) => {
       desc: raw.desc,
       // sendRandCodeV2 returns the key that randcodeLogin must echo back.
       randcodeKey: ok && typeof raw.data === "string" ? raw.data : "",
+      captchaUsed: Boolean(validate),
       raw,
     });
   } catch (err) {

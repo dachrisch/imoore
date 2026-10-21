@@ -196,7 +196,11 @@ export function ssoHeaders(host, encryptKey, at = new Date()) {
     version: `A_${APP_VERSION}`,
     nDeviceId: profile.nDeviceId,
     timestamp: String(now),
-    "User-Agent": "okhttp/3.12.0",
+    // Georgia.Uganda() does not set User-Agent (HttpURLConnection uses the
+    // Dalvik default), so this is opt-in/overridable for risk-sensitive calls.
+    ...(process.env.IMOORE_NO_UA === "1"
+      ? {}
+      : { "User-Agent": process.env.IMOORE_USER_AGENT || "okhttp/3.12.0" }),
   };
   if (encryptKey) {
     h.EncryptType = "1";

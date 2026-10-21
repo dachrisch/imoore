@@ -41,7 +41,7 @@ See `docs/signing-and-crypto.md`.
 
 | Path | Result |
 |---|---|
-| SMS OTP | `sendRandCodeV2` → `010106` for **every** number tested (real +49, reserved US/UK numbers, invalid 86 numbers) and every `codeType`, even with a valid `App-Checksum` — additional client risk/device check |
+| SMS OTP | **Verified end-to-end** with a reCAPTCHA token (`captchaId=com.recaptcha.id.app.imoo`); without it every number/`codeType` returns `010106` |
 | Password | `/app/loginV2` → `010402` on a wrong password; the same reply comes for a random number, so it does not prove account existence. **Verified end-to-end:** a freshly registered account returns `000001` with the token. |
 | Coupling code | `/d/<code>` is a `302` to the app-download page, not a credential |
 | QR login | endpoints answer live, but the scanner branch is `xtc`-only (see below) |
@@ -80,11 +80,17 @@ The header set is built by
 (`A_` + version), `SystemLanguageUtil.getFinalLanguageValue()`,
 `TimeZone.getDefault().getID()`, and `DeviceDataTool`.
 
-The APK also sends `App-Checksum` = `getf(String.valueOf(System.currentTimeMillis()))`
-from `librubbish.so`: uppercase hex MD5 of the app-signing certificate DER,
-concatenated with the millis string, then MD5'd again as ASCII and lowercased.
-The live gateway answers `010314 app校验码无效` for every value we derive, so the
-prototype omits the header; every endpoint we call works without it.
+The APK also sends `App-Checksum` = `com.xtc.secret.Georgia.HongKong(millis)`
+from `librubbish.so`. The exact derivation (verified against the app) is:
+
+```
+lower( hex( SHA256( upper(hex(MD5(certDER))) + decimal millis ) ) )
+```
+
+The outer hash is **SHA-256**, not MD5. With this value the gateway accepts the
+header (`/app/rsakey` and `/app/areaCodeList` return `000001`); earlier
+`010314 app校验码无效` came from using MD5 for the outer digest. The prototype
+derives it when `IMOORE_SSO_CERT_DER` points at the signer's `cert.der`.
 
 Wire param names come from `Gabon.Venezuela`, called by
 `com.bbk.secureunisignon.common.net.biz.Hawaii.HongKong` and
@@ -96,7 +102,7 @@ Wire param names come from `Gabon.Venezuela`, called by
 | `areaCode` | numeric country code without `+` |
 | `language` | `Locale.toString()` from the device, e.g. `en_US`, `de_DE` |
 | `codeType` | int in the APK, sent as its decimal string: `0` = register/resend, `2` = reset password, `3` = login |
-| `captchaId`, `validate`, `userKey` | optional, empty for plain SMS |
+| `captchaId`, `validate`, `userKey` | `captchaId` = reCAPTCHA site key and `validate` = token; **required** for OTP sends from this deployment (see below). `userKey` stays empty. |
 | `appId`, `mac`, `timestamp`, `sign` | common envelope params |
 
 `codeType` sources: `RegisterNumberActivity`/`RegisterVerifyActivity` → 0,
@@ -108,19 +114,31 @@ it back. (The client treats it as opaque; the app forwards the same string.)
 
 `areaCode` lookup uses `/app/areaCodeList` (POST, same envelope).
 
-**Live status (2026-10-21):** `sendRandCodeV2` accepts our signed/encrypted
-request but answers `010106 Failed to send the verification code` for a real
-+49 number, reserved US/UK numbers, invalid 86 numbers, and `codeType` 0
-(register), 2 and 3, on both hosts. Since the reply is identical for every
-number and the same client gets `000001` from `/app/areaCodeList`, `010106` is
-an additional client risk/device rejection (the valid `App-Checksum` alone is
-not enough), not a per-number delivery failure. It also blocks
-self-registration, because `/app/regist` needs an SMS `randcode`. If an SMS
-does arrive, the prototype still submits `randcodeLogin` with an empty
-`randcodeKey` (unverified fallback, since `data` is null on the failed send).
+### reCAPTCHA gate (required for OTP)
 
-In the meantime the prototype exposes **password login** (`/app/loginV2`,
-below), which is verified live to validate credentials for these numbers.
+`sendRandCodeV2` is captcha-gated. The official app uses **Google reCAPTCHA**:
+
+- `com.xtc.account.randcodevalideate.Gabon.Hawaii()` returns the site key
+  **`com.recaptcha.id.app.imoo`**.
+- `AuthenticationActivity$Ghana` obtains a token with the app's
+  `RecaptchaTasksClient` and calls `S3` → `G4` → `Hawaii.HongKong` with
+  `captchaId = com.recaptcha.id.app.imoo` and `validate = <token>`.
+- `Gabon.Venezuela` forwards them as `captchaId` / `validate`.
+
+Without them, every number and `codeType` returns `010106`. With them the
+server returns `000001` and `data` = `randcode_11_<area>-<number>_<codeType>`.
+
+**Live verification (2026-10-22):** `codeType 3` with a token →
+`000001` + `randcode_11_49-015124154206_3`; then `randcodeLogin` with the SMS
+code and that key → `000001` + the session token. Full SMS login verified,
+including through the prototype (`/api/login/code` → `/api/login/verify`).
+
+The token is minted by the app's SDK, bound to the package/site key, so a Node
+client cannot create one. The prototype bridges it over adb/Frida:
+`IMOORE_CAPTCHA_BRIDGE=1` foregrounds the installed app, runs
+`prototype/tools/fetch-captcha.js` via `fetch-captcha.py`, and uses the returned
+token in `/api/login/code`. This needs the rooted phone + frida-server; without
+the bridge, sends keep returning `010106` and password login is the fallback.
 
 ### Step 2: Submit OTP
 
