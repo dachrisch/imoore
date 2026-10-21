@@ -144,10 +144,11 @@ export async function getSsoPublicKey(host = SSO_HOST) {
     return der;
   }
   const url = `${host}/app/rsakey`;
-  const params = { appId: APP_ID, mac: MAC, timestamp: ssoTimestamp() };
+  const at = new Date();
+  const params = { appId: APP_ID, mac: MAC, timestamp: ssoTimestamp(at) };
   params.sign = buildSign(url, params, APP_ID);
   const body = Object.keys(params).map((k) => `${k}=${params[k]}`).join("&");
-  const text = await httpPost(url, body, ssoHeaders(host));
+  const text = await httpPost(url, body, ssoHeaders(host, undefined, at));
   const json = JSON.parse(text);
   if (json.code !== "000001") throw new Error(`rsakey failed: ${json.code} ${json.desc}`);
   const der = Buffer.from(json.data, "base64");
@@ -155,12 +156,23 @@ export async function getSsoPublicKey(host = SSO_HOST) {
   return der;
 }
 
+// Optional App-Checksum derivation: the APK computes it with the same
+// millisecond value it puts in the `timestamp` header, so it must be derived
+// inside ssoHeaders() rather than supplied as a fixed environment value.
+function derivedAppChecksum(millis) {
+  const derPath = process.env.IMOORE_SSO_CERT_DER;
+  if (!derPath) return null;
+  const der = fs.readFileSync(derPath);
+  const inner = crypto.createHash("md5").update(der).digest("hex").toUpperCase();
+  return crypto.createHash("md5").update(inner + String(millis), "utf8").digest("hex").toLowerCase();
+}
+
 // Header set built by com.bbk.secureunisignon.common.net.Georgia.Uganda()
 // (RequestParamsFactory.initConnection). The endpoints we call work without
 // most of these, but sending them keeps requests shaped like the APK's.
-export function ssoHeaders(host, encryptKey) {
+export function ssoHeaders(host, encryptKey, at = new Date()) {
   const profile = deviceProfile();
-  const now = Date.now();
+  const now = at.getTime();
   const h = {
     "Content-Type": "application/x-www-form-urlencoded",
     // URLEncoder.encode(Build.BRAND + "-" + Build.MODEL)
@@ -184,6 +196,15 @@ export function ssoHeaders(host, encryptKey) {
     h.EncryptType = "1";
     h.EncryptKey = encryptKey;
   }
+  // The APK sends App-Checksum from com.xtc.secret.Georgia.HongKong()
+  // (native getf / cached value). Derived values were rejected with 010314,
+  // so it is opt-in via env for experiments.
+  if (process.env.IMOORE_SSO_APP_CHECKSUM) {
+    h["App-Checksum"] = process.env.IMOORE_SSO_APP_CHECKSUM;
+  } else if (process.env.IMOORE_SSO_CERT_DER) {
+    const checksum = derivedAppChecksum(now);
+    if (checksum) h["App-Checksum"] = checksum;
+  }
   return h;
 }
 
@@ -194,7 +215,8 @@ export function ssoHeaders(host, encryptKey) {
  */
 export async function ssoPost(path, params, host = SSO_HOST, appId = APP_ID) {
   const url = `${host}${path}`;
-  const full = { ...params, appId, mac: MAC, timestamp: ssoTimestamp() };
+  const at = new Date();
+  const full = { ...params, appId, mac: MAC, timestamp: ssoTimestamp(at) };
   full.sign = buildSign(url, full, appId);
 
   const pub = await getSsoPublicKey(host);
@@ -202,7 +224,7 @@ export async function ssoPost(path, params, host = SSO_HOST, appId = APP_ID) {
   const body = aesEncrypt(JSON.stringify(full), aesKey).toString("base64");
   const encryptKey = rsaEncryptAesKey(aesKey, pub);
 
-  const text = await httpPost(url, body, ssoHeaders(host, encryptKey));
+  const text = await httpPost(url, body, ssoHeaders(host, encryptKey, at));
   let json;
   try {
     json = JSON.parse(text);
@@ -218,10 +240,11 @@ export async function ssoPost(path, params, host = SSO_HOST, appId = APP_ID) {
 /** Signed, unencrypted call (used by endpoints that have no payload). */
 export async function ssoPostPlain(path, params, host = SSO_HOST, appId = APP_ID) {
   const url = `${host}${path}`;
-  const full = { ...params, appId, mac: MAC, timestamp: ssoTimestamp() };
+  const at = new Date();
+  const full = { ...params, appId, mac: MAC, timestamp: ssoTimestamp(at) };
   full.sign = buildSign(url, full, appId);
   const body = Object.keys(full).map((k) => `${k}=${full[k]}`).join("&");
-  return JSON.parse(await httpPost(url, body, ssoHeaders(host)));
+  return JSON.parse(await httpPost(url, body, ssoHeaders(host, undefined, at)));
 }
 
 // ── SSO endpoints ──────────────────────────────────────────────────────────────

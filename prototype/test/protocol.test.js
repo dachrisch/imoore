@@ -51,6 +51,12 @@ test("remainingPasswordAttempts reads the loginV2 010402 counter", () => {
   assert.equal(remainingPasswordAttempts(null), null);
 });
 
+test("ssoHeaders uses the supplied instant for the timestamp header", () => {
+  const d = new Date(1700000000000);
+  const h = ssoHeaders("https://account-oz.okii.com", undefined, d);
+  assert.equal(h.timestamp, "1700000000000");
+});
+
 test("bindWithCode refuses to run without a code or a session token", async () => {
   await assert.rejects(() => bindWithCode({ bindNumber: "akatbiwcbzpbpowok" }), /session token/);
   await assert.rejects(() => bindWithCode({ token: "t" }), /bindNumber/);

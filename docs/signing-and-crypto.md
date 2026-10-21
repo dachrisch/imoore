@@ -166,11 +166,20 @@ entry 5 → `get7` (0x100d8), which:
 4. The Java caller lowercases the result.
 
 For `base.apk` (signer `CN=xtc`, cert SHA-256 `f4f0…4979`) that derivation yields
-`md5(hexUpper(md5(certDER)) + millis)`, but the live gateway rejects every
-variant we tried with `010314 app校验码无效`. The header is optional for
-`/app/rsakey`, `/app/areaCodeList`, and the OTP endpoints, so the prototype
-omits it. A current installed APK may be required to match the server's
-registered value.
+`md5(hexUpper(md5(certDER)) + millis)`. The prototype now derives it with the
+**same millisecond value** that goes into the `timestamp` header (the app uses
+one `Date` for both), and we also tried ~20 format variants — cert DER vs the
+`BNDLTOOL.RSA` block, upper/lower hex, hex vs raw MD5, package/appId salts,
+with and without the millis. Every value is rejected with
+`010314 app校验码无效`; only omitting the header is accepted.
+
+Consequence: `sendRandCodeV2` answers `010106` for **every** number (real +49,
+reserved US 555 / UK 7700 numbers, invalid 86 numbers) and for `codeType` 0
+(register), 2 and 3, while `/app/areaCodeList` succeeds without the header.
+That is a client-attestation/anti-fraud rejection, not a per-number or
+per-region SMS delivery problem, and it also blocks self-registration
+(`/app/regist` needs an SMS `randcode`). The header is therefore optional in
+the prototype, and the password path (`/app/loginV2`) is the working login.
 
 ## Core API envelope (verified live)
 

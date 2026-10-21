@@ -41,7 +41,7 @@ See `docs/signing-and-crypto.md`.
 
 | Path | Result |
 |---|---|
-| SMS OTP | `sendRandCodeV2` → `010106` for a real +49 number, all `codeType`s and both hosts (provider-side; retried) |
+| SMS OTP | `sendRandCodeV2` → `010106` for **every** number tested (real +49, reserved US/UK numbers, invalid 86 numbers) and every `codeType` — client attestation, not per-number |
 | Password | `/app/loginV2` → `010402` on a wrong password; the same reply comes for a random number, so it does not prove account existence |
 | Coupling code | `/d/<code>` is a `302` to the app-download page, not a credential |
 | QR login | endpoints answer live, but the scanner branch is `xtc`-only (see below) |
@@ -110,15 +110,14 @@ it back. (The client treats it as opaque; the app forwards the same string.)
 
 **Live status (2026-10-21):** `sendRandCodeV2` accepts our signed/encrypted
 request but answers `010106 Failed to send the verification code` for a real
-+49 number, for both `account.okii.com` and `account-oz.okii.com`, with
-`codeType` 0, 2 and 3, with/without leading zero, with `en`/`en_US`/`de_DE`,
-with the body timestamp in Europe/Berlin, UTC and Asia/Shanghai, and with and
-without the full APK header set. Invalid test numbers return the same code, so
-`010106` is a provider-side delivery failure rather than a
-parameter/signature error. It has to be confirmed against the official app on
-the same number before changing the protocol further. If an SMS does arrive, the
-prototype still submits `randcodeLogin` with an empty `randcodeKey` (unverified
-fallback, since `data` is null on the failed send).
++49 number, reserved US/UK numbers, invalid 86 numbers, and `codeType` 0
+(register), 2 and 3, on both hosts. Since the reply is identical for every
+number and the same client gets `000001` from `/app/areaCodeList`, `010106` is
+a client-attestation/anti-fraud rejection (the missing `App-Checksum`, or a
+captcha the risk engine wants), not a per-number delivery failure. It also
+blocks self-registration, because `/app/regist` needs an SMS `randcode`. If an
+SMS does arrive, the prototype still submits `randcodeLogin` with an empty
+`randcodeKey` (unverified fallback, since `data` is null on the failed send).
 
 In the meantime the prototype exposes **password login** (`/app/loginV2`,
 below), which is verified live to validate credentials for these numbers.
