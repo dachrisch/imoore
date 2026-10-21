@@ -41,7 +41,7 @@ See `docs/signing-and-crypto.md`.
 
 | Path | Result |
 |---|---|
-| SMS OTP | `sendRandCodeV2` → `010106` for **every** number tested (real +49, reserved US/UK numbers, invalid 86 numbers) and every `codeType` — client attestation, not per-number |
+| SMS OTP | `sendRandCodeV2` → `010106` for **every** number tested (real +49, reserved US/UK numbers, invalid 86 numbers) and every `codeType`, even with a valid `App-Checksum` — additional client risk/device check |
 | Password | `/app/loginV2` → `010402` on a wrong password; the same reply comes for a random number, so it does not prove account existence. **Verified end-to-end:** a freshly registered account returns `000001` with the token. |
 | Coupling code | `/d/<code>` is a `302` to the app-download page, not a credential |
 | QR login | endpoints answer live, but the scanner branch is `xtc`-only (see below) |
@@ -113,10 +113,10 @@ request but answers `010106 Failed to send the verification code` for a real
 +49 number, reserved US/UK numbers, invalid 86 numbers, and `codeType` 0
 (register), 2 and 3, on both hosts. Since the reply is identical for every
 number and the same client gets `000001` from `/app/areaCodeList`, `010106` is
-a client-attestation/anti-fraud rejection (the missing `App-Checksum`, or a
-captcha the risk engine wants), not a per-number delivery failure. It also
-blocks self-registration, because `/app/regist` needs an SMS `randcode`. If an
-SMS does arrive, the prototype still submits `randcodeLogin` with an empty
+an additional client risk/device rejection (the valid `App-Checksum` alone is
+not enough), not a per-number delivery failure. It also blocks
+self-registration, because `/app/regist` needs an SMS `randcode`. If an SMS
+does arrive, the prototype still submits `randcodeLogin` with an empty
 `randcodeKey` (unverified fallback, since `data` is null on the failed send).
 
 In the meantime the prototype exposes **password login** (`/app/loginV2`,

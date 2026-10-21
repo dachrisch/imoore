@@ -163,8 +163,14 @@ function derivedAppChecksum(millis) {
   const derPath = process.env.IMOORE_SSO_CERT_DER;
   if (!derPath) return null;
   const der = fs.readFileSync(derPath);
+  // librubbish get7: inner = hexUpper(MD5(certDER)); then get8 uses SHA-256
+  // (0x2cb52 in .rodata), not MD5: outer = hexUpper(SHA256(inner + millis)).
   const inner = crypto.createHash("md5").update(der).digest("hex").toUpperCase();
-  return crypto.createHash("md5").update(inner + String(millis), "utf8").digest("hex").toLowerCase();
+  return crypto
+    .createHash("sha256")
+    .update(inner + String(millis), "utf8")
+    .digest("hex")
+    .toLowerCase();
 }
 
 // Header set built by com.bbk.secureunisignon.common.net.Georgia.Uganda()

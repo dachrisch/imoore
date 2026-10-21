@@ -161,25 +161,36 @@ entry 5 → `get7` (0x100d8), which:
    `CertificateFactory("X.509").generateCertificate(...)` →
    `Certificate.getEncoded()` (the signing certificate DER, 703 bytes here).
 2. MD5s those bytes and hex-encodes them with the uppercase table at 0x2d130.
-3. `strcat`s the millis argument and calls `get8`, which MD5s the resulting
-   ASCII string, hex-encodes it, and returns that.
+3. `strcat`s the millis argument and calls `get8`, which **SHA-256s** the
+   resulting ASCII string (the `SHA256` literal at `.rodata` 0x2cb52), hex-encodes
+   it, and returns it.
 4. The Java caller lowercases the result.
 
-For `base.apk` (signer `CN=xtc`, cert SHA-256 `f4f0…4979`) that derivation yields
-`md5(hexUpper(md5(certDER)) + millis)`. The prototype now derives it with the
-**same millisecond value** that goes into the `timestamp` header (the app uses
-one `Date` for both), and we also tried ~20 format variants — cert DER vs the
-`BNDLTOOL.RSA` block, upper/lower hex, hex vs raw MD5, package/appId salts,
-with and without the millis. Every value is rejected with
-`010314 app校验码无效`; only omitting the header is accepted.
+For `base.apk` (signer `CN=xtc`, cert SHA-256 `f4f0…4979`) that derivation is
 
-Consequence: `sendRandCodeV2` answers `010106` for **every** number (real +49,
-reserved US 555 / UK 7700 numbers, invalid 86 numbers) and for `codeType` 0
-(register), 2 and 3, while `/app/areaCodeList` succeeds without the header.
-That is a client-attestation/anti-fraud rejection, not a per-number or
-per-region SMS delivery problem, and it also blocks self-registration
-(`/app/regist` needs an SMS `randcode`). The header is therefore optional in
-the prototype, and the password path (`/app/loginV2`) is the working login.
+```
+uppercase hex SHA-256( uppercase hex MD5(certDER) + decimal millis )
+```
+
+then lowercased. The prototype derives it with the **same millisecond value**
+that goes into the `timestamp` header (the app uses one `Date` for both), via
+`IMOORE_SSO_CERT_DER=/path/to/cert.der`.
+
+**Live status (2026-10-21):** `POST /app/areaCodeList` and `GET /app/rsakey`
+now accept this value — the earlier `010314 app校验码无效` was caused by using
+MD5 for the outer digest instead of SHA-256. The SMS service still answers
+`010106` for every number even with a valid `App-Checksum`, `A_9.36.80`, and
+`dataCenterCode: DE_FRA` (see `docs/authentication.md`), so `App-Checksum` was
+necessary but not sufficient for OTP delivery.
+
+Consequence: `sendRandCodeV2` still answers `010106` for **every** number
+(real +49, reserved US 555 / UK 7700 numbers, invalid 86 numbers) and for
+`codeType` 0 (register), 2 and 3, on both account hosts, with and without the
+valid checksum. That is an additional client risk/device check, not a
+per-number or per-region SMS delivery problem, and it also blocks
+self-registration (`/app/regist` needs an SMS `randcode`). The header stays
+opt-in (`IMOORE_SSO_CERT_DER`), and the password path (`/app/loginV2`) is the
+working login.
 
 ## Core API envelope (verified live)
 
