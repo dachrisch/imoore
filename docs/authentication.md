@@ -42,7 +42,7 @@ See `docs/signing-and-crypto.md`.
 | Path | Result |
 |---|---|
 | SMS OTP | `sendRandCodeV2` → `010106` for **every** number tested (real +49, reserved US/UK numbers, invalid 86 numbers) and every `codeType` — client attestation, not per-number |
-| Password | `/app/loginV2` → `010402` on a wrong password; the same reply comes for a random number, so it does not prove account existence |
+| Password | `/app/loginV2` → `010402` on a wrong password; the same reply comes for a random number, so it does not prove account existence. **Verified end-to-end:** a freshly registered account returns `000001` with the token. |
 | Coupling code | `/d/<code>` is a `302` to the app-download page, not a credential |
 | QR login | endpoints answer live, but the scanner branch is `xtc`-only (see below) |
 
@@ -191,6 +191,13 @@ account exists; the server does not disclose that. `data` is the attempts-left
 counter (`LoginActivity$Hawaii` parses it as an int and toasts
 `sso_password_invalid_remain_times`; 0 shows the "count 0" dialog). Treat
 password attempts as limited and do not guess.
+
+**Verified end-to-end (2026-10-21):** after registering a fresh account in the
+official app on a connected phone (where `sendRandCodeV2` succeeds and returns
+`000001`, unlike our client's `010106`), the prototype logged in with
+`POST /app/loginV2` and received `000001` plus the token. Password login needs
+no SMS and no `App-Checksum`. Core API calls then answer `000017 temp.` until a
+watch is bound to the fresh account.
 
 ### Family-member accounts
 

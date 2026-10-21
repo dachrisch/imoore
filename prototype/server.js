@@ -200,7 +200,7 @@ app.get("/api/selftest", async (_req, res) => {
   }
   try {
     // No token: the correct envelope gets past the gateway and returns a
-    // business error (000004 invalid token) instead of 000007/100500.
+    // business error (000003/000004) instead of 000007/100500.
     const raw = await coreRequest("GET", "/smartwatch/mobilewatch", { token: "", authId: "0", host: API_HOST });
     out.coreEnvelope = { ok: true, code: raw.code, desc: raw.desc };
   } catch (err) {

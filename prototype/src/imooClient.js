@@ -348,31 +348,42 @@ export function parseLoginResult(raw) {
 // ── Core API transport ─────────────────────────────────────────────────────────
 // Verified live against watch-oz.okii.com:
 //   GET /rsa -> {data:{encSwitch, publicKey:<base64 SPKI>}}
-//   Base-Request-Param = base64(AES-128-ECB(json, key))
-//   Eebbk-Key          = base64(RSA-PKCS1(key, /rsa publicKey))
-//   Eebbk-Sign         = md5(url + Base-Request-Param + body + key)
-//   response           = base64(AES(gzip(json)))
+//   encSwitch = 0 (this deployment):
+//     Base-Request-Param = plain JSON; no Eebbk-Key / encrypted headers
+//   encSwitch = 1:
+//     Base-Request-Param = base64(AES-128-ECB(json, key))
+//     Eebbk-Key          = base64(RSA-PKCS1(key, /rsa publicKey))
+//   Eebbk-Sign           = md5(url + Base-Request-Param + body + key)
+//   response             = plain JSON, or base64(AES(gzip(json))) when encrypted
 // Headers mirror com.xtc.http.okhttp.Greece.
 const APP_VERSION = process.env.IMOORE_APP_VERSION || "9.36.71";
 // md5 of META-INF/BNDLTOOL.RSA in the official base.apk (signer CN=xtc).
 const APP_CHECKSUM = process.env.IMOORE_APP_CHECKSUM || "5e2f081103fb40b3d55a324ec93fb6fd";
-const coreKeys = new Map(); // host -> raw DER buffer
+const coreKeys = new Map(); // host -> { der, encSwitch }
 
-export async function getCorePublicKey(host = API_HOST) {
+export async function getCoreMeta(host = API_HOST) {
   if (coreKeys.has(host)) return coreKeys.get(host);
   if (process.env.IMOORE_CORE_RSA_PUBKEY) {
     const der = Buffer.from(process.env.IMOORE_CORE_RSA_PUBKEY, "base64");
-    coreKeys.set(host, der);
-    return der;
+    const meta = { der, encSwitch: Number(process.env.IMOORE_CORE_ENC_SWITCH ?? 0) };
+    coreKeys.set(host, meta);
+    return meta;
   }
   const res = await fetch(`${host}/rsa`, { headers: { Accept: "application/json" } });
   const json = await res.json();
   if (json.code !== "000001" || !json.data?.publicKey) {
     throw new Error(`core /rsa failed: ${json.code} ${json.desc}`);
   }
-  const der = Buffer.from(json.data.publicKey, "base64");
-  coreKeys.set(host, der);
-  return der;
+  const meta = {
+    der: Buffer.from(json.data.publicKey, "base64"),
+    encSwitch: Number(json.data.encSwitch ?? 0),
+  };
+  coreKeys.set(host, meta);
+  return meta;
+}
+
+export async function getCorePublicKey(host = API_HOST) {
+  return (await getCoreMeta(host)).der;
 }
 
 function authIdFromToken(token) {
@@ -402,6 +413,7 @@ export async function coreRequest(method, path, { token = "", authId, body = nul
     appId: "0",
     deviceId: profile.deviceId,
     imFlag: "1",
+    mac: MAC,
     machineId: profile.machineId,
     nDeviceId: profile.nDeviceId,
     program: "android",
@@ -409,19 +421,19 @@ export async function coreRequest(method, path, { token = "", authId, body = nul
     timestamp: coreTimestamp(),
     token,
   };
-  const brpB64 = aesEncrypt(JSON.stringify(brp), key).toString("base64");
+  const meta = await getCoreMeta(host);
+  const encrypt = meta.encSwitch === 1;
+  const brpJson = JSON.stringify(brp);
+  const brpValue = encrypt ? aesEncrypt(brpJson, key).toString("base64") : brpJson;
   const bodyText = body == null ? "" : JSON.stringify(body);
-  const pub = await getCorePublicKey(host);
   const sign = crypto
     .createHash("md5")
-    .update(url + brpB64 + bodyText + key, "utf8")
+    .update(url + brpValue + bodyText + key, "utf8")
     .digest("hex");
 
   const headers = {
-    "Base-Request-Param": brpB64,
-    "Eebbk-Key": rsaEncryptAesKey(key, pub),
+    "Base-Request-Param": brpValue,
     "Eebbk-Sign": sign,
-    encrypted: "encrypted",
     authId: accountId,
     program: "android",
     "Content-Type": "application/json;charset=utf-8",
@@ -433,6 +445,10 @@ export async function coreRequest(method, path, { token = "", authId, body = nul
     Host: new URL(host).host,
     "App-Checksum": APP_CHECKSUM,
   };
+  if (encrypt) {
+    headers["Eebbk-Key"] = rsaEncryptAesKey(key, meta.der);
+    headers.encrypted = "encrypted";
+  }
 
   const opts = { method: method.toUpperCase(), headers };
   if (bodyText && opts.method !== "GET") opts.body = bodyText;

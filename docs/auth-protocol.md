@@ -40,8 +40,12 @@ is the end-to-end map.
    `timestamp` (`yyyy-MM-dd HH:mm:ss`), `token`.
    `token` is the **raw `data` string** from the SSO login; `accountId` is the
    `accountId` inside it (also sent as the `authId` header).
-3. Encrypt the param JSON with a fresh 16-char key, wrap the key with the
-   `/rsa` public key, and sign `url + encryptedParam + body + key`.
+3. If `/rsa` reports `encSwitch = 1`, encrypt the param JSON with a fresh
+   16-char key, wrap the key with the `/rsa` public key, and sign
+   `url + encryptedParam + body + key`. On this deployment `encSwitch = 0`:
+   send the param JSON **plain** in `Base-Request-Param`, omit `Eebbk-Key` /
+   `encrypted`, and sign over the plain string. The encrypted form is rejected
+   with `000004`.
 4. Send the headers listed in
    [`signing-and-crypto.md`](signing-and-crypto.md#core-api-envelope-verified-live)
    (`encrypted`, `Eebbk-Key`, `Eebbk-Sign`, `authId`, `program`, `Version`,

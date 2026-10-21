@@ -194,10 +194,12 @@ GET /rsa   (unauthenticated, unsigned)
                              "modulus":"0xBF,0x67,..."}}
 ```
 
-`publicKey` is a 512-bit X.509 SPKI. `encSwitch` comes back `0`, so the shipped
-app skips encryption (`Germany.Ukraine()` returns `(EncSwitch == 1) &&
-!Georgia().isEmpty()`); the gateway nevertheless accepts the encrypted form,
-which is what the prototype sends.
+`publicKey` is a 512-bit X.509 SPKI. `encSwitch` comes back `0`, and the app
+honours it: `Germany.Ukraine()` is `(EncSwitch == 1) && !publicKey.isEmpty()`,
+so on this deployment `Base-Request-Param` is the **plain JSON string** and the
+`Eebbk-Key` / `encrypted` headers are omitted. Sending the encrypted form
+anyway gets `000004 request parameter is invalid.`; with the plain form and a
+real session token the same call reaches the business layer.
 
 Headers, from `com.xtc.http.okhttp.Greece.Hawaii`:
 
@@ -211,8 +213,8 @@ Headers, from `com.xtc.http.okhttp.Greece.Hawaii`:
 | `App-Brand` / `ApkType` | `imoo` |
 | `Content-Encoding` | `gzip` (response decoding hint) |
 | `App-Checksum` | md5 of the APK signing block (`Signature.toByteArray()`) |
-| `Base-Request-Param` | `base64(AES-128-ECB-PKCS5(json, key))` |
-| `Eebbk-Key` | `base64(RSA-PKCS1(key, /rsa publicKey))` |
+| `Base-Request-Param` | plain JSON when `encSwitch = 0`; `base64(AES-128-ECB-PKCS5(json, key))` when `1` |
+| `Eebbk-Key` | `base64(RSA-PKCS1(key, /rsa publicKey))` — only when `encSwitch = 1` |
 | `encrypted` | `encrypted` |
 | `Eebbk-Sign` | `md5(url + Base-Request-Param + body + key)` |
 | `authId` | the account id |
