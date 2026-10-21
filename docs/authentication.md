@@ -51,11 +51,26 @@ Charset: utf-8
 EncryptType: 1
 EncryptKey: <base64 RSA(aesKey)>
 
-<base64 AES-ECB-PKCS5({"mobilePhone":"13612345678","areaCode":"86","appId":"11","mac":"…","timestamp":"2026-10-21 15:49:29","sign":"…"})>
+<base64 AES-ECB-PKCS5({"userName":"13612345678","areaCode":"86","language":"en","codeType":"0","appId":"11","mac":"…","timestamp":"2026-10-21 15:49:29","sign":"…"})>
 ```
 
-`areaCode` is the numeric country code without `+`. Use `/app/areaCodeList`
-(POST, same envelope) to look up codes.
+Wire param names come from `Gabon.Venezuela`, called by
+`com.bbk.secureunisignon.common.net.biz.Hawaii.HongKong` and
+`SSONetServiceImpl.K4`:
+
+| param | notes |
+|---|---|
+| `userName` | the mobile number — **not** `mobilePhone`; the server errors `000002` without it |
+| `areaCode` | numeric country code without `+` |
+| `language` | app locale, e.g. `en` |
+| `codeType` | int in the APK, sent as its decimal string; `0` from the login screen |
+| `captchaId`, `validate`, `userKey` | optional, empty for plain SMS |
+| `appId`, `mac`, `timestamp`, `sign` | common envelope params |
+
+`data` in a success response is the **randcodeKey**; `randcodeLogin` must echo
+it back. (The client treats it as opaque; the app forwards the same string.)
+
+`areaCode` lookup uses `/app/areaCodeList` (POST, same envelope).
 
 ### Step 2: Submit OTP
 
@@ -63,15 +78,24 @@ EncryptKey: <base64 RSA(aesKey)>
 POST https://account.okii.com/app/randcodeLogin
 ```
 
-Same envelope, params:
+Same envelope, params from `Gabon.Portugal` (via `Germany.D5` →
+`Hawaii.Panama`):
 
 ```json
 {
-  "mobilePhone": "13612345678",
+  "deviceId": "<32-hex device id>",
+  "userName": "13612345678",
   "areaCode": "86",
-  "randcode": "123456"
+  "randcodeKey": "<data from sendRandCodeV2>",
+  "randcode": "123456",
+  "nDeviceId": "<32-hex device id>",
+  "days": "-1"
 }
 ```
+
+`days = "-1"` is what the app passes (no expiry). The login screen calls this
+with `userName`/`areaCode`/`randcode`/`randcodeKey`; `deviceId` and `nDeviceId`
+come from `DeviceDataTool`.
 
 ## Password Flow
 
@@ -105,7 +129,18 @@ Encrypted envelope, params:
 
 ## Session Token
 
-A successful login returns a session token. The token payload (possibly Base64-encoded) has this shape:
+A successful `randcodeLogin` returns `{"code":"000001","desc":"success","data":"<json string>"}`.
+`data` is a **JSON string**, not an object; the app parses it as
+`SSOLoginResult` and then stores the *raw string* as the ticket:
+
+- `Germany$Ireland` (randcodeLogin callback): `SSOLoginResult gson(data)` then
+  `setTicket(data)` — the ticket is the whole `data` string.
+- `com.xtc.account.service.Gibraltar.Gabon(SSOLoginResult)`:
+  `MobileAccount.token = result.getTicket()` and
+  `authId = parseInt(result.getAccountId())`.
+
+So the session token sent on later calls is exactly the `data` string, and
+`authId` is `accountId` from inside it. The payload has this shape:
 
 ```json
 {
@@ -126,7 +161,9 @@ A successful login returns a session token. The token payload (possibly Base64-e
 Key fields:
 - `accountId` — numeric guardian account ID
 - `appId` — always `"11"` for the imoo Watch app
-- `sign` — MD5 hash used for request signing
+- `sign` — value returned inside the login result; the per-request `sign` is
+  computed from the appId secret (`docs/signing-and-crypto.md`), not from this
+  field
 - `maxAge: -1` — session does not expire automatically
 
 ## Using the Token

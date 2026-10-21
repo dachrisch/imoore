@@ -130,6 +130,68 @@ POST https://account.okii.com/app/areaCodeList   (signed, AES+RSA)
 The prototype (`prototype/src/imooClient.js`) implements exactly this and
 fetches 172 area codes live.
 
+## Core API envelope (verified live)
+
+The core API (`https://watch-oz.okii.com`) does **not** use the `/app/*` scheme.
+It authenticates with a `Base-Request-Param` header plus `authId`, and encrypts
+that header with a per-request key wrapped to a key fetched from `/rsa`.
+
+```
+GET /rsa   (unauthenticated, unsigned)
+  → {"code":"000001","data":{"encSwitch":0,
+                             "publicKey":"MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJB...",
+                             "modulus":"0xBF,0x67,..."}}
+```
+
+`publicKey` is a 512-bit X.509 SPKI. `encSwitch` comes back `0`, so the shipped
+app skips encryption (`Germany.Ukraine()` returns `(EncSwitch == 1) &&
+!Georgia().isEmpty()`); the gateway nevertheless accepts the encrypted form,
+which is what the prototype sends.
+
+Headers, from `com.xtc.http.okhttp.Greece.Hawaii`:
+
+| header | value |
+|---|---|
+| `program` | `android` |
+| `Content-Type` | `application/json;charset=utf-8` |
+| `Device-Name` | `BRAND-MODEL`, URL-encoded |
+| `Version` | app version |
+| `Accept-Language` | locale |
+| `App-Brand` / `ApkType` | `imoo` |
+| `Content-Encoding` | `gzip` (response decoding hint) |
+| `App-Checksum` | md5 of the APK signing block (`Signature.toByteArray()`) |
+| `Base-Request-Param` | `base64(AES-128-ECB-PKCS5(json, key))` |
+| `Eebbk-Key` | `base64(RSA-PKCS1(key, /rsa publicKey))` |
+| `encrypted` | `encrypted` |
+| `Eebbk-Sign` | `md5(url + Base-Request-Param + body + key)` |
+| `authId` | the account id |
+
+`Base-Request-Param` fields (`com.xtc.http.bean.BaseRequestParam`, filled by
+`com.xtc.http.Germany.Hawaii`):
+
+```
+accountId  appId("0")  deviceId  imFlag("1")  machineId  nDeviceId
+program("android")  registId  timestamp("yyyy-MM-dd HH:mm:ss")  token
+```
+
+The response is gzip-compressed, AES-encrypted with the same per-request key,
+base64-encoded and wrapped in a JSON string literal (`"<base64>"`); decode in
+that order.
+
+Live differential check (no account needed):
+
+| request | response |
+|---|---|
+| no `Base-Request-Param` | `000007 request parameter is invalid.` |
+| plain JSON `Base-Request-Param` + `Eebbk-Sign` | `100500 api gateway error` |
+| encrypted BRP + `Eebbk-Key` + `Eebbk-Sign` | `000004 request parameter is invalid.` |
+
+`000004` is the gateway-accepted state for an absent/expired token, i.e. the
+envelope is correct and only the session is missing. At that stage a wrong
+`Eebbk-Sign` value also returns `000004`, so the sign formula above comes from
+the bytecode (`Germany.Uganda`), not from differential testing.
+
+
 ## Reproducing
 
 ```sh

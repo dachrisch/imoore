@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Working prototype: imoo Watch login flow + chat interface against the live okii.com API.",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"

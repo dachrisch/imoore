@@ -5,3 +5,6 @@ prototype/node_modules/
 
 # native split extraction
 native/
+
+# generated per-install device identity for the prototype
+prototype/.device.json

@@ -21,8 +21,8 @@ Bytecode agrees: `api.watch.okii.com` exists only as `HttpConstants.HOST_NAME_AR
 ## How to view / validate
 
 - Swagger UI: the README's editor.swagger.io link renders the raw GitHub `openapi.yaml` — no local setup needed.
-- Optional local validation (not preinstalled, verify before relying on it): `npx @redocly/cli lint openapi.yaml` or `npx @redocly/cli preview openapi.yaml`. There is no committed build/test/lint config.
-- There are **no tests, no CI, no package manifest**. Don't invent verification steps; YAML validity is the only hard check.
+- Optional local validation (not preinstalled, verify before relying on it): `npx @redocly/cli lint openapi.yaml` or `npx @redocly/cli preview openapi.yaml`.
+- The prototype is the only executable component: `cd prototype && npm install && npm test` (offline fixtures) and `npm start` (web UI at `http://localhost:3000`, `GET /api/selftest` for live checks). The spec itself still has no build/test/lint config.
 
 ## How the spec was built (and how to extend it)
 
@@ -52,4 +52,8 @@ Read these before asserting auth/role behavior in generated code or docs.
 `librubbish.so` (the ABI split, not `base.apk`) via `tools/pull-native.sh`; the
 crypto itself is Java (`d.b.a.A1`) reached through JNI trampolines. Do not
 re-introduce `Authorization: Bearer` — this app never sends it.
+
+The core API uses a different envelope: `Base-Request-Param` (AES key wrapped
+to the `GET /rsa` public key in `Eebbk-Key`, signed with `Eebbk-Sign`). It is
+verified live up to the token check — see `docs/signing-and-crypto.md`.
 

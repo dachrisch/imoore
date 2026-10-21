@@ -1,24 +1,23 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import zlib from "node:zlib";
+import { fileURLToPath } from "node:url";
 
 // ── Hosts ──────────────────────────────────────────────────────────────────────
 // SSO/auth endpoints live on the account host, not the core API host.
-// The app defaults to account.okii.com; the international mirror is
-// account-oz.okii.com (see docs/signing-and-crypto.md).
 const SSO_HOST = (process.env.IMOORE_SSO_HOST || "https://account.okii.com").replace(/\/$/, "");
 // Core API (Base-Request-Param auth) — global build defaults to the -oz mirror.
 const API_HOST = (process.env.IMOORE_API_HOST || "https://watch-oz.okii.com").replace(/\/$/, "");
 const CHAT_HOST = (process.env.IMOORE_CHAT_HOST || "https://chat.watch.okii.com").replace(/\/$/, "");
 
-// ── Signing ────────────────────────────────────────────────────────────────────
-// Recovered from librubbish.so (`com.xtc.secret.XTCgetUtilWrapper`) — see
-// docs/signing-and-crypto.md. appId selects which secret the server expects.
+// ── Signing (SSO) ──────────────────────────────────────────────────────────────
+// Recovered from librubbish.so — see docs/signing-and-crypto.md.
 const SIGN_SECRETS = {
   "11": "LKyF8jThHbZfUeTP", // geta  → get2  (XOR {1..5} then right-rotate 4)  ✓ live
   "31": "CXy5qhZZ0qHkjvgh", // getTeacherA → get9 (rotate 4 then XOR {1..5}) ✓ live
   "33": "5sacCZns3z9sTcCX", // geth  → get12 (plain constant)               ✓ live
   "35": "NQIiQkcCIGhfn2s9", // getI  → get13 (plain constant)               ✓ live
   "37": "thqHjysVOkGETPoY", // getJ  → get14 (plain constant)               ✓ live
-  "48": "5sacCZns3z9sTcCX", // geth — client uses this, server rejected it  ✗ unverified
 };
 const APP_ID = process.env.IMOORE_APP_ID || "11";
 const MAC = process.env.IMOORE_MAC || "64ba24f2457d405dbf40346f96d80934";
@@ -30,10 +29,16 @@ function secretFor(appId) {
 }
 
 // Java: SimpleDateFormat("yyyy-MM-dd kk:mm:ss") — kk is 01..24, not 00..23.
-function ssoTimestamp(d = new Date()) {
+export function ssoTimestamp(d = new Date()) {
   const p = (n) => String(n).padStart(2, "0");
   const hour = d.getHours() === 0 ? 24 : d.getHours();
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(hour)}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+// Java: SimpleDateFormat("yyyy-MM-dd HH:mm:ss") for the core API (00..23).
+export function coreTimestamp(d = new Date()) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
 // md5(url + "k=v" sorted case-insensitively, joined by "##" + secret).toLowerCase()
@@ -57,7 +62,7 @@ function aesEncrypt(plain, aesKey) {
 
 function aesDecrypt(buf, aesKey) {
   const d = crypto.createDecipheriv("aes-128-ecb", Buffer.from(aesKey, "utf8"), null);
-  return Buffer.concat([d.update(buf), d.final()]).toString("utf8");
+  return Buffer.concat([d.update(buf), d.final()]);
 }
 
 function rsaEncryptAesKey(aesKey, spkiDer) {
@@ -73,8 +78,48 @@ function newAesKey() {
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
 }
 
+// Response bodies are gzip-compressed before AES encryption; decode defensively
+// because some server errors come back uncompressed.
+function decodeResponse(payload, aesKey) {
+  let plain = aesDecrypt(Buffer.from(payload, "base64"), aesKey);
+  if (plain[0] === 0x1f && plain[1] === 0x8b) plain = zlib.gunzipSync(plain);
+  return plain.toString("utf8");
+}
+
+// ── Device identity ────────────────────────────────────────────────────────────
+// The APK derives these from the Android device/account (DeviceDataTool). We
+// persist random equivalents so one prototype install looks like one device.
+const DEVICE_FILE = process.env.IMOORE_DEVICE_FILE || fileURLToPath(new URL("../.device.json", import.meta.url));
+
+function uuidHex() {
+  return crypto.randomUUID().replace(/-/g, "");
+}
+
+export function deviceProfile() {
+  if (process.env.IMOORE_DEVICE_ID) {
+    return {
+      deviceId: process.env.IMOORE_DEVICE_ID,
+      machineId: process.env.IMOORE_MACHINE_ID || process.env.IMOORE_DEVICE_ID,
+      nDeviceId: process.env.IMOORE_NDEVICE_ID || process.env.IMOORE_DEVICE_ID,
+    };
+  }
+  try {
+    const saved = JSON.parse(fs.readFileSync(DEVICE_FILE, "utf8"));
+    if (saved.deviceId && saved.machineId && saved.nDeviceId) return saved;
+  } catch {
+    /* first run */
+  }
+  const profile = { deviceId: uuidHex(), machineId: uuidHex(), nDeviceId: uuidHex() };
+  try {
+    fs.writeFileSync(DEVICE_FILE, JSON.stringify(profile, null, 2));
+  } catch {
+    /* ephemeral is fine */
+  }
+  return profile;
+}
+
 // ── SSO transport ──────────────────────────────────────────────────────────────
-let cachedPubKey = null; // raw DER buffer
+let cachedSsoKey = null; // raw DER buffer
 
 async function httpPost(url, body, headers) {
   const res = await fetch(url, { method: "POST", headers, body });
@@ -89,11 +134,11 @@ async function httpPost(url, body, headers) {
 }
 
 // GET /app/rsakey — signed, unencrypted. Response: {code,desc,data:<base64 SPKI>}
-async function getRsaPublicKey(host = SSO_HOST) {
-  if (cachedPubKey) return cachedPubKey;
+export async function getSsoPublicKey(host = SSO_HOST) {
+  if (cachedSsoKey) return cachedSsoKey;
   if (process.env.IMOORE_RSA_PUBKEY) {
-    cachedPubKey = Buffer.from(process.env.IMOORE_RSA_PUBKEY, "base64");
-    return cachedPubKey;
+    cachedSsoKey = Buffer.from(process.env.IMOORE_RSA_PUBKEY, "base64");
+    return cachedSsoKey;
   }
   const url = `${host}/app/rsakey`;
   const params = { appId: APP_ID, mac: MAC, timestamp: ssoTimestamp() };
@@ -102,8 +147,8 @@ async function getRsaPublicKey(host = SSO_HOST) {
   const text = await httpPost(url, body, ssoHeaders(host));
   const json = JSON.parse(text);
   if (json.code !== "000001") throw new Error(`rsakey failed: ${json.code} ${json.desc}`);
-  cachedPubKey = Buffer.from(json.data, "base64");
-  return cachedPubKey;
+  cachedSsoKey = Buffer.from(json.data, "base64");
+  return cachedSsoKey;
 }
 
 function ssoHeaders(host, encryptKey) {
@@ -130,7 +175,7 @@ export async function ssoPost(path, params, host = SSO_HOST, appId = APP_ID) {
   const full = { ...params, appId, mac: MAC, timestamp: ssoTimestamp() };
   full.sign = buildSign(url, full, appId);
 
-  const pub = await getRsaPublicKey(host);
+  const pub = await getSsoPublicKey(host);
   const aesKey = newAesKey();
   const body = aesEncrypt(JSON.stringify(full), aesKey).toString("base64");
   const encryptKey = rsaEncryptAesKey(aesKey, pub);
@@ -140,9 +185,12 @@ export async function ssoPost(path, params, host = SSO_HOST, appId = APP_ID) {
   try {
     json = JSON.parse(text);
   } catch {
-    json = JSON.parse(aesDecrypt(Buffer.from(text, "base64"), aesKey));
+    json = null;
   }
-  return json;
+  // Some endpoints answer with a JSON string literal holding base64 ciphertext.
+  if (typeof json === "string") return JSON.parse(decodeResponse(json, aesKey));
+  if (json != null) return json;
+  return JSON.parse(decodeResponse(text, aesKey));
 }
 
 /** Signed, unencrypted call (used by endpoints that have no payload). */
@@ -154,38 +202,171 @@ export async function ssoPostPlain(path, params, host = SSO_HOST, appId = APP_ID
   return JSON.parse(await httpPost(url, body, ssoHeaders(host)));
 }
 
-// ── Public helpers used by the prototype UI ────────────────────────────────────
-export async function requestSmsCode({ mobilePhone, areaCode }, host = SSO_HOST) {
-  return ssoPost("/app/sendRandCodeV2", { mobilePhone, areaCode }, host);
+// ── SSO endpoints ──────────────────────────────────────────────────────────────
+/**
+ * POST /app/sendRandCodeV2 — request an SMS OTP.
+ * Wire params per Gabon.Venezuela / SSOLoginServiceImpl:
+ *   userName, areaCode, language, codeType, appId (+ mac/timestamp/sign)
+ * `codeType` is an int in the APK and is sent as its decimal string.
+ * Returns the raw {code,desc,data}; `data` is the randcodeKey that the login
+ * step must echo back.
+ */
+export async function requestSmsCode(
+  { userName, areaCode = "86", language = "en", codeType = 0, captchaId, validate, userKey } = {},
+  host = SSO_HOST
+) {
+  if (!userName) throw new Error("userName (mobile number) is required");
+  const params = { userName, areaCode, language, codeType: String(codeType) };
+  if (captchaId) params.captchaId = captchaId;
+  if (validate) params.validate = validate;
+  if (userKey) params.userKey = userKey;
+  return ssoPost("/app/sendRandCodeV2", params, host);
 }
 
-export async function loginWithSmsCode({ mobilePhone, areaCode, randcode }, host = SSO_HOST) {
-  return ssoPost("/app/randcodeLogin", { mobilePhone, areaCode, randcode }, host);
+/**
+ * POST /app/randcodeLogin — exchange the SMS OTP for a session.
+ * Wire params per Gabon.Portugal:
+ *   deviceId, userName, areaCode, randcodeKey, randcode, nDeviceId, days, appId
+ * The APK passes days = "-1" (no expiry).
+ */
+export async function loginWithSmsCode(
+  { userName, areaCode = "86", randcode, randcodeKey = "", days = "-1" } = {},
+  host = SSO_HOST
+) {
+  if (!userName || !randcode) throw new Error("userName and randcode are required");
+  const { deviceId, nDeviceId } = deviceProfile();
+  return ssoPost(
+    "/app/randcodeLogin",
+    { deviceId, userName, areaCode, randcodeKey, randcode, nDeviceId, days },
+    host
+  );
 }
 
 export async function areaCodeList(host = SSO_HOST) {
   return ssoPost("/app/areaCodeList", {}, host);
 }
 
-// Core API: no Authorization header exists in this app. Auth travels inside
-// `Base-Request-Param` (with authId + Eebbk-Sign); see docs/authentication.md.
-export async function proxy(method, path, host, token, body) {
-  const url = `${host}${path}`;
-  const headers = { "Content-Type": "application/json", Accept: "application/json" };
-  if (token) {
-    headers["Base-Request-Param"] = JSON.stringify({ token, appId: APP_ID });
-    if (process.env.IMOORE_AUTH_ID) headers.authId = process.env.IMOORE_AUTH_ID;
+// The SSO login response is `data` = a JSON string. The app parses it as
+// SSOLoginResult and then stores the **raw string** as the ticket/token
+// (Germany$Ireland -> SSOLoginResult.setTicket(data), Gibraltar.Gabon ->
+// MobileAccount.token = ticket), while authId = parseInt(accountId).
+export function parseLoginResult(raw) {
+  if (!raw || raw.code !== "000001") return null;
+  const data = raw.data;
+  if (typeof data !== "string" || !data.trim()) return null;
+  let profile = null;
+  try {
+    profile = JSON.parse(data);
+  } catch {
+    /* older builds may return an opaque token */
   }
-  const opts = { method, headers };
-  if (body !== null && body !== undefined && method !== "GET") opts.body = JSON.stringify(body);
+  const authId = profile?.accountId != null ? String(profile.accountId) : null;
+  return { token: data, authId, profile };
+}
+
+// ── Core API transport ─────────────────────────────────────────────────────────
+// Verified live against watch-oz.okii.com:
+//   GET /rsa -> {data:{encSwitch, publicKey:<base64 SPKI>}}
+//   Base-Request-Param = base64(AES-128-ECB(json, key))
+//   Eebbk-Key          = base64(RSA-PKCS1(key, /rsa publicKey))
+//   Eebbk-Sign         = md5(url + Base-Request-Param + body + key)
+//   response           = base64(AES(gzip(json)))
+// Headers mirror com.xtc.http.okhttp.Greece.
+const APP_VERSION = process.env.IMOORE_APP_VERSION || "9.36.71";
+// md5 of META-INF/BNDLTOOL.RSA in the official base.apk (signer CN=xtc).
+const APP_CHECKSUM = process.env.IMOORE_APP_CHECKSUM || "5e2f081103fb40b3d55a324ec93fb6fd";
+// Only used if the server ever rejects the compressed response path.
+let cachedCoreKey = null;
+
+export async function getCorePublicKey(host = API_HOST) {
+  if (cachedCoreKey) return cachedCoreKey;
+  if (process.env.IMOORE_CORE_RSA_PUBKEY) {
+    cachedCoreKey = Buffer.from(process.env.IMOORE_CORE_RSA_PUBKEY, "base64");
+    return cachedCoreKey;
+  }
+  const res = await fetch(`${host}/rsa`, { headers: { Accept: "application/json" } });
+  const json = await res.json();
+  if (json.code !== "000001" || !json.data?.publicKey) {
+    throw new Error(`core /rsa failed: ${json.code} ${json.desc}`);
+  }
+  cachedCoreKey = Buffer.from(json.data.publicKey, "base64");
+  return cachedCoreKey;
+}
+
+function authIdFromToken(token) {
+  if (!token || typeof token !== "string" || !token.trim().startsWith("{")) return null;
+  try {
+    const v = JSON.parse(token);
+    return v?.accountId != null ? String(v.accountId) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Authenticated core-API request.
+ * @param {"GET"|"POST"|"PUT"|"DELETE"} method
+ * @param {string} path  e.g. "/smartwatch/mobilewatch"
+ * @param {{token?: string, authId?: string|number, body?: any, host?: string}} opts
+ */
+export async function coreRequest(method, path, { token = "", authId, body = null, host = API_HOST } = {}) {
+  const url = `${host}${path}`;
+  const profile = deviceProfile();
+  const key = newAesKey();
+  const accountId = authId != null && authId !== "" ? String(authId) : authIdFromToken(token) || "0";
+
+  const brp = {
+    accountId,
+    appId: "0",
+    deviceId: profile.deviceId,
+    imFlag: "1",
+    machineId: profile.machineId,
+    nDeviceId: profile.nDeviceId,
+    program: "android",
+    registId: 0,
+    timestamp: coreTimestamp(),
+    token,
+  };
+  const brpB64 = aesEncrypt(JSON.stringify(brp), key).toString("base64");
+  const bodyText = body == null ? "" : JSON.stringify(body);
+  const pub = await getCorePublicKey(host);
+  const sign = crypto
+    .createHash("md5")
+    .update(url + brpB64 + bodyText + key, "utf8")
+    .digest("hex");
+
+  const headers = {
+    "Base-Request-Param": brpB64,
+    "Eebbk-Key": rsaEncryptAesKey(key, pub),
+    "Eebbk-Sign": sign,
+    encrypted: "encrypted",
+    authId: accountId,
+    program: "android",
+    "Content-Type": "application/json;charset=utf-8",
+    "Device-Name": process.env.IMOORE_DEVICE_NAME || "samsung-SM-G935F",
+    Version: APP_VERSION,
+    "Accept-Language": process.env.IMOORE_LANGUAGE || "en",
+    "App-Brand": "imoo",
+    ApkType: "imoo",
+    Host: new URL(host).host,
+    "App-Checksum": APP_CHECKSUM,
+  };
+
+  const opts = { method: method.toUpperCase(), headers };
+  if (bodyText && opts.method !== "GET") opts.body = bodyText;
+
   const res = await fetch(url, opts);
   const text = await res.text();
   let json;
   try {
     json = JSON.parse(text);
   } catch {
-    json = { __raw__: text };
+    json = null;
   }
+  // Core responses are a JSON string literal containing the base64 ciphertext
+  // (i.e. "\"<b64>\""); unwrap it before decrypting.
+  if (typeof json === "string") json = JSON.parse(decodeResponse(json, key));
+  else if (json == null) json = JSON.parse(decodeResponse(text, key));
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status} on ${method} ${url}`);
     err.status = res.status;
@@ -195,4 +376,9 @@ export async function proxy(method, path, host, token, body) {
   return json;
 }
 
-export { SSO_HOST, API_HOST, CHAT_HOST, APP_ID };
+// Kept for backwards compatibility with the old prototype API.
+export async function proxy(method, path, host, token, body) {
+  return coreRequest(method, path, { token, body, host });
+}
+
+export { SSO_HOST, API_HOST, CHAT_HOST, APP_ID, MAC };
