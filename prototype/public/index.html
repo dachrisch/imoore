@@ -26,6 +26,7 @@
     .hidden { display:none; }
     .tag { display:inline-block; font-size:11px; padding:2px 6px; border-radius:6px; background:#2a2e37; color:var(--muted); margin-left:6px; }
     .status { margin-top:8px; font-size:13px; }
+    .hint { color:var(--muted); font-size:12px; margin:4px 0 0; }
     .ok { color:var(--ok); }
     .bad { color:var(--bad); }
     .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px; }
@@ -38,10 +39,10 @@
   </header>
   <div class="note">
     Signing, AES/RSA encryption and the encrypted core-API envelope are implemented and verified live
-    (see <code>docs/signing-and-crypto.md</code>). Logging in needs a real SMS; the OTP is sent by okii.com to your phone.
-    The live gateway currently answers <code>010106</code> ("Failed to send the verification code") for the test
-    number on both account hosts and all <code>codeType</code> values — see
-    <code>docs/authentication.md</code> → <em>Live status</em>.
+    (see <code>docs/signing-and-crypto.md</code>). The live gateway currently answers <code>010106</code>
+    ("Failed to send the verification code") for SMS on the test number, so a <strong>password login</strong>
+    (<code>/app/loginV2</code>) is provided as the fallback — see
+    <code>docs/authentication.md</code> → <em>Password Flow</em>.
   </div>
   <main>
     <div class="card hidden" id="selftestCard">
@@ -83,6 +84,17 @@
       <button id="btnVerify">Verify &amp; login</button>
       <div id="loginStatus" class="status"></div>
       <pre id="loginRaw" class="hidden"></pre>
+
+      <h3 style="margin-top:20px">Password login <span class="tag">family-member accounts</span></h3>
+      <p class="hint">
+        Uses <code>/app/loginV2</code>. The server counts wrong passwords and tells us how many
+        attempts are left — do not guess.
+      </p>
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="account password" />
+      <button id="btnPassword" class="secondary">Login with password</button>
+      <div id="passwordStatus" class="status"></div>
+      <pre id="passwordRaw" class="hidden"></pre>
 
       <div class="grid" style="margin-top:12px">
         <div>

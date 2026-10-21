@@ -65,3 +65,5 @@ Profile editing is scoped to specific resources — there is no single `/profile
 ## Why You See Yourself Only as a Member
 
 If you were added to a watch by another guardian, your phone was registered as a `geniusAccount` (secondary slot). The app shows you in the member list but offers no profile editing UI — all management belongs to the admin. To gain admin access, either request it (`apply/admin`) or have the current admin transfer it (`changeadmin`).
+
+Role and login are orthogonal: every phone number authenticates through the same `/app/*` endpoints (`sendRandCodeV2` + `randcodeLogin`, or `/app/loginV2` with a password). A `geniusAccount` carries its own `number` and password (`TalentAccountBean.number` / `passwordBlank`, set by the admin via `geniusAccount/settingPassword`), so a member logs in with that number and password. A number that was only added as a contact, or whose invitation was never completed, has no login account at all — that is the case to rule out first when both SMS and password fail.

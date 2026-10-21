@@ -31,7 +31,7 @@ See `docs/signing-and-crypto.md`.
 | Method | Endpoints | Notes |
 |---|---|---|
 | SMS OTP | `POST /app/sendRandCodeV2` → `POST /app/randcodeLogin` | Easiest; no password needed |
-| Password | `GET /app/rsakey` → `POST /app/login2` | Password must be RSA-encrypted |
+| Password | `POST /app/loginV2` | Password inside the AES envelope; works for member accounts |
 | Token resume | `POST /app/tokenLogin` | Reuse an existing session token |
 | QR code | `POST /app/qrcode` → `POST /app/qrcode/scan` → `GET /app/qrcode/token` | Scan from another device |
 | One-click | `POST /app/oneClick/login` / `POST /app/oneClick/loginV2` | Chinese carrier SSO |
@@ -111,6 +111,9 @@ the same number before changing the protocol further. If an SMS does arrive, the
 prototype still submits `randcodeLogin` with an empty `randcodeKey` (unverified
 fallback, since `data` is null on the failed send).
 
+In the meantime the prototype exposes **password login** (`/app/loginV2`,
+below), which is verified live to validate credentials for these numbers.
+
 ### Step 2: Submit OTP
 
 ```http
@@ -138,33 +141,60 @@ come from `DeviceDataTool`.
 
 ## Password Flow
 
-Passwords are sent RSA-encrypted to avoid plaintext over the wire.
+The 9.36.71 global build logs in with a password via **`/app/loginV2`**
+(`Gabon.Israel`, reached from `MobileService.SolomonIslands` →
+`SSONetServiceImpl.K3` → `Germany.Fc` → `biz.Hawaii.Vietnam`). `/app/login2`
+still exists as a URL constant in the SSO request class but this build's account
+service never calls it, so the older "RSA-encrypted password" description does
+not apply here.
 
-### Step 1: Fetch RSA public key
+The password travels as plaintext **inside the AES-encrypted request body** —
+the same envelope as every other `/app/*` call. There is no per-field RSA step.
 
-```http
-POST https://account-oz.okii.com/app/rsakey
-```
-
-Signed but not encrypted; body is the plain `k=v&k=v` string. The response is
-`{"code":"000001","desc":"success","data":"<base64 X.509 SPKI>"}` — a
-1024-bit RSA key.
-
-### Step 2: Login
+### Request
 
 ```http
-POST https://account-oz.okii.com/app/login2
+POST https://account-oz.okii.com/app/loginV2
 ```
 
-Encrypted envelope, params:
+Same signed/AES envelope as `sendRandCodeV2`, params from `Gabon.Israel`:
+
+| param | notes |
+|---|---|
+| `userName` | the mobile number |
+| `password` | account password, plain inside the encrypted body |
+| `days` | `"-1"` (hardcoded by the app) |
+| `deviceId` | 32-hex device id |
+| `appId` | `11` |
+| `areaCode` | numeric country code without `+` |
+| `nDeviceId` | 32-hex device id |
+| `deviceToken` | NetEase Yidun captcha token; empty is accepted |
+
+**Live result (2026-10-21):** a probe with a deliberately wrong password
+returned
 
 ```json
-{
-  "mobilePhone": "13612345678",
-  "areaCode": "86",
-  "password": "<RSA-encrypted password>"
-}
+{"code":"010402","desc":"账号名或密码错误","data":2}
 ```
+
+`010402` means wrong account/password — but a random, almost certainly
+unregistered number returns the same shape, so it does **not** prove that the
+account exists; the server does not disclose that. `data` is the attempts-left
+counter (`LoginActivity$Hawaii` parses it as an int and toasts
+`sso_password_invalid_remain_times`; 0 shows the "count 0" dialog). Treat
+password attempts as limited and do not guess.
+
+### Family-member accounts
+
+Admin vs member is a role on the `mobilewatch` relationship, not a separate
+login namespace: members use the same `/app/*` login endpoints once their
+number is a login account. The SMS answer `010106` and the password answer
+`010402` are both generic and tell us nothing about the role. If neither path
+works for a member's number, the open question is whether that number is
+registered as a `mobileaccount`/`geniusAccount` at all (e.g. an invitation that
+was never completed) — confirm with the official app on the same number before
+changing the protocol. Role restrictions only apply to what the token can do
+afterwards (`docs/account-model.md`).
 
 ## Session Token
 

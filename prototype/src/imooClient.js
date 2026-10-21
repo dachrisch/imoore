@@ -268,6 +268,38 @@ export async function loginWithSmsCode(
   );
 }
 
+/**
+ * POST /app/loginV2 — password login.
+ * Wire params per Gabon.Israel (reached from MobileService.SolomonIslands ->
+ * SSONetServiceImpl.K3 -> Germany.Fc -> Hawaii.Vietnam):
+ *   userName, password, days, deviceId, appId, areaCode, nDeviceId, deviceToken
+ * The password is plaintext inside the AES-encrypted payload; there is no
+ * separate RSA layer (the older /app/login2 path is unused in this build).
+ * `deviceToken` is the NetEase Yidun captcha token; an empty value is accepted
+ * and the server still validates the password.
+ */
+export async function loginWithPassword(
+  { userName, password, areaCode = "86", days = "-1", deviceToken = "" } = {},
+  host = SSO_HOST
+) {
+  if (!userName || !password) throw new Error("userName and password are required");
+  const { deviceId, nDeviceId } = deviceProfile();
+  return ssoPost(
+    "/app/loginV2",
+    { userName, password, days, deviceId, nDeviceId, areaCode, deviceToken },
+    host
+  );
+}
+
+// 010402 = wrong account/password. `data` carries the number of attempts left:
+// LoginActivity$Hawaii parses it as an int and toasts "remaining times", or
+// shows the "count 0" dialog when it is 0.
+export function remainingPasswordAttempts(raw) {
+  if (!raw || raw.code !== "010402") return null;
+  const n = Number.parseInt(raw.data, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 export async function areaCodeList(host = SSO_HOST) {
   return ssoPost("/app/areaCodeList", {}, host);
 }

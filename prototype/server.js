@@ -4,6 +4,8 @@ import { dirname, join } from "path";
 import {
   requestSmsCode,
   loginWithSmsCode,
+  loginWithPassword,
+  remainingPasswordAttempts,
   areaCodeList,
   parseLoginResult,
   coreRequest,
@@ -63,6 +65,32 @@ app.post("/api/login/verify", async (req, res) => {
       token: parsed?.token ?? null,
       authId: parsed?.authId ?? null,
       profile: parsed?.profile ?? null,
+      raw,
+    });
+  } catch (err) {
+    res.status(502).json({ error: String(err?.message || err) });
+  }
+});
+
+// Password login (/app/loginV2) — the fallback when SMS delivery is
+// unavailable. On 010402 the server reports an attempts-left counter in `data`.
+app.post("/api/login/password", async (req, res) => {
+  try {
+    const { userName, mobilePhone, password, areaCode = "86", deviceToken = "" } = req.body || {};
+    const phone = userName || mobilePhone;
+    if (!phone || !password) {
+      return res.status(400).json({ error: "userName and password are required" });
+    }
+    const raw = await loginWithPassword({ userName: phone, password, areaCode, deviceToken }, SSO_HOST);
+    const parsed = parseLoginResult(raw);
+    res.json({
+      ok: Boolean(parsed),
+      code: raw.code,
+      desc: raw.desc,
+      token: parsed?.token ?? null,
+      authId: parsed?.authId ?? null,
+      profile: parsed?.profile ?? null,
+      remainingAttempts: remainingPasswordAttempts(raw),
       raw,
     });
   } catch (err) {

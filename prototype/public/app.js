@@ -94,6 +94,45 @@ $("btnVerify").onclick = async () => {
   }
 };
 
+$("btnPassword").onclick = async () => {
+  const btn = $("btnPassword");
+  const password = $("password").value;
+  if (!password) {
+    setStatus($("passwordStatus"), false, "Enter your account password first.");
+    return;
+  }
+  btn.disabled = true;
+  setStatus($("passwordStatus"), true, "Logging in…");
+  try {
+    const r = await postJson("/api/login/password", {
+      userName: $("userName").value.trim(),
+      areaCode: $("areaCode").value.trim(),
+      password,
+    });
+    if (r.ok && r.token) {
+      $("token").value = r.token;
+      $("authId").value = r.authId || "";
+      if (r.profile) showPre($("profileOut"), r.profile);
+      setStatus($("loginStatus"), true, `Logged in — authId ${r.authId || "?"}`);
+      setStatus($("passwordStatus"), true, `Logged in — authId ${r.authId || "?"}`);
+      unlockChat();
+    } else if (r.remainingAttempts !== null && r.remainingAttempts !== undefined) {
+      setStatus(
+        $("passwordStatus"),
+        false,
+        `${r.code} — ${r.desc}. Server reports ${r.remainingAttempts} attempt(s) left — do not guess.`
+      );
+    } else {
+      setStatus($("passwordStatus"), false, `${r.code || "error"} — ${r.desc || r.error || "login failed"}`);
+    }
+    if (r.raw) showPre($("passwordRaw"), r.raw);
+  } catch (err) {
+    setStatus($("passwordStatus"), false, String(err));
+  } finally {
+    btn.disabled = false;
+  }
+};
+
 $("btnAreaCodes").onclick = async () => {
   const btn = $("btnAreaCodes");
   btn.disabled = true;
