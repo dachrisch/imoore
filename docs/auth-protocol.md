@@ -48,6 +48,19 @@ is the end-to-end map.
    `App-Checksum`, …).
 5. Response: `base64 → AES → gunzip → JSON`.
 
+## Login variants
+
+All of these use the SSO envelope above; the wire params differ.
+
+| Variant | Endpoints | Notes |
+|---|---|---|
+| SMS OTP | `sendRandCodeV2` → `randcodeLogin` | `codeType` 3 for login; `010106` for the test number (provider-side) |
+| Password | `/app/loginV2` | password is plaintext **inside** the AES body; empty `deviceToken` accepted; `010402` carries `data` = attempts left |
+| Token resume | `/app/tokenLogin`, `/app/loginV2` (`userId`+`token`+`deviceToken`) | reuse an existing session |
+| QR | `/app/qrcode/token` → `/app/qrcode` → `/app/qrcode/scan` | scanner branch is `xtc`-only; see [`authentication.md`](authentication.md#qr-login-endpoint-research) |
+
+See [`authentication.md`](authentication.md) for params and live results.
+
 ## Where values come from
 
 | value | source |
@@ -57,7 +70,7 @@ is the end-to-end map.
 | `mac` | `Hawaii.Hawaii`, fallback `64ba24f2457d405dbf40346f96d80934` |
 | `deviceId` | `DeviceDataTool.getDeviceId(mobileId)` |
 | `machineId` / `nDeviceId` | `DeviceDataTool.getMachineId()` / `getNewDeviceId()` |
-| session `token` | `randcodeLogin` response `data` (raw JSON string) |
+| session `token` | `randcodeLogin` or `/app/loginV2` response `data` (raw JSON string) |
 | `authId` | `SSOLoginResult.accountId` |
 
 ## History of this document

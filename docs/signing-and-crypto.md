@@ -128,7 +128,7 @@ POST https://account.okii.com/app/areaCodeList   (signed, AES+RSA)
 ```
 
 The prototype (`prototype/src/imooClient.js`) implements exactly this and
-fetches 172 area codes live.
+fetches 176 area codes live.
 
 ## SSO request headers
 

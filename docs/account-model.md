@@ -33,6 +33,29 @@ POST /smartwatch/mobilewatch/apply/admin/refuse — admin rejects the request
 POST /smartwatch/mobilewatch/dismissFamily — remove a member from the family
 ```
 
+## Joining a Family (invitation code)
+
+The family-invite screen shows a QR plus a 16-character "Kopplungscode"
+(coupling code). It is an **invitation/binding reference, not a login
+credential**:
+
+- The QR is built as `<DomainManager.serverUrl>/d/<bindNumber>` in
+  `account/activity/talent/utils/Greece`; `bindNumber` comes from
+  `TalentAccountBean.getBindNumber()`.
+- Scanning it opens `H5Api.startCommonH5NoParam` — an H5 landing page, not an
+  API call (`account/activity/bind/utils/Guatemala.Gambia`).
+- Live check (2026-10-21): `GET https://watch-oz.okii.com/d/akatbiwcbzpbpowok`
+  → `302` → `https://static.watch.okii.com/watch/download/xtc.html`
+  (the app-download page). The plain host redirects to the imoo download page
+  instead.
+- The actual join/bind runs on **token-authenticated core endpoints** —
+  `/smartwatch/mobilewatch`, `/smartwatch/mobilewatch/apply/admin`,
+  `/smartwatch/watchaccount/bindnumber`, `/geniusAccount/*`,
+  `/group-chat/familyGroup/invite` — and needs the admin's approval.
+
+So the code only becomes usable inside the app **after** a session exists
+(SMS or password login). It cannot create a session by itself.
+
 ## Family Group
 
 Members are gathered into a family group for group chat:

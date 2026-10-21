@@ -53,12 +53,20 @@ Endpoints worth knowing:
 | `GET /api/selftest` | Live checks: `/app/rsakey`, `/rsa`, `/app/areaCodeList`, core envelope |
 | `POST /api/login/code` | `sendRandCodeV2` — sends a real SMS |
 | `POST /api/login/verify` | `randcodeLogin` — returns `token` + `authId` |
-| `POST /api/area-codes` | Live `areaCodeList` (172 codes) |
+| `POST /api/login/password` | `/app/loginV2` — password login, returns `token` + `authId` and the attempts-left counter on `010402` |
+| `POST /api/area-codes` | Live `areaCodeList` (176 codes) |
 | `GET /api/watches`, `/api/groups`, `/api/members`, `POST /api/proxy` | Authenticated core calls (`token` + `authId`) |
 
-The login step needs a real phone number to receive the OTP. Core calls need
-the token from a successful login; without one the gateway answers `000004`
-(request parameter is invalid).
+SMS is currently blocked at the provider for the test number
+(`sendRandCodeV2` → `010106`, documented in
+[`docs/authentication.md`](docs/authentication.md#live-status-2026-10-21)), so
+the UI also exposes **password login** via `/app/loginV2` — the password is
+plaintext inside the AES envelope, and `/app/login2` is legacy. Family-invite
+"coupling codes" are not login credentials
+([`docs/account-model.md`](docs/account-model.md#joining-a-family-invitation-code)).
+
+Core calls need the token from a successful login; without one the gateway
+answers `000004` (request parameter is invalid).
 
 
 ## Methodology

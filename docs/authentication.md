@@ -31,11 +31,20 @@ See `docs/signing-and-crypto.md`.
 | Method | Endpoints | Notes |
 |---|---|---|
 | SMS OTP | `POST /app/sendRandCodeV2` → `POST /app/randcodeLogin` | Easiest; no password needed |
-| Password | `POST /app/loginV2` | Password inside the AES envelope; works for member accounts |
+| Password | `POST /app/loginV2` | Password inside the AES envelope; fallback when SMS is unavailable |
 | Token resume | `POST /app/tokenLogin` | Reuse an existing session token |
-| QR code | `POST /app/qrcode` → `POST /app/qrcode/scan` → `GET /app/qrcode/token` | Scan from another device |
+| QR code | `POST /app/qrcode/token` → `POST /app/qrcode` → `POST /app/qrcode/scan` | `xtc` builds only (see below) |
 | One-click | `POST /app/oneClick/login` / `POST /app/oneClick/loginV2` | Chinese carrier SSO |
 | Third-party | `POST /app/third/login` | Social account binding |
+
+### Live status (2026-10-21)
+
+| Path | Result |
+|---|---|
+| SMS OTP | `sendRandCodeV2` → `010106` for a real +49 number, all `codeType`s and both hosts (provider-side; retried) |
+| Password | `/app/loginV2` → `010402` on a wrong password; the same reply comes for a random number, so it does not prove account existence |
+| Coupling code | `/d/<code>` is a `302` to the app-download page, not a credential |
+| QR login | endpoints answer live, but the scanner branch is `xtc`-only (see below) |
 
 ## Recommended Flow — SMS OTP
 
@@ -196,9 +205,51 @@ was never completed) — confirm with the official app on the same number before
 changing the protocol. Role restrictions only apply to what the token can do
 afterwards (`docs/account-model.md`).
 
+## QR Login (endpoint research)
+
+The SSO layer carries a four-endpoint QR login used to authorize another
+device. None of it bypasses the login problem for a phone in this build:
+
+| Endpoint | Params (`Gabon` method) | Role |
+|---|---|---|
+| `POST /app/qrcode/token` | `appId`, `deviceId`, `expire`, `machineId` (`Indonesia`) | new device creates a `ssoc…` token |
+| `POST /app/qrcode` | `token`, `deviceId`, `appId`, `expire` (`Hungary`) | resolve token to the QR payload |
+| `POST /app/qrcode/scan` | `appId`, `deviceId`, `accountId`, `targetApp`, `targetDevice`, `login`, `auth` (`Chile`) | logged-in device authorizes |
+| `POST /app/qrcode/login` | `appId`, `deviceId`, `token`, `days` (`Honduras`) | token-for-session exchange |
+
+**Live probes (2026-10-21):**
+
+```
+POST /app/qrcode/token {deviceId,machineId,expire:"300"}
+  -> {"code":"000001","data":"ssoc0cbnbt00ycihddo00paaaugnoasl"}   (new token each call)
+
+POST /app/qrcode {token:"", …}              -> 010802 二维码登陆token无效
+POST /app/qrcode {token:<random 32-hex>, …} -> 010801 二维码登陆token过期
+POST /app/qrcode {token:<fresh token>, …}   -> 000001
+  data = "auth=ssoc…&targetApp=11&targetDevice=<deviceId>"
+```
+
+The payload is the query string the app's scanner parses in
+`account/activity/bind/utils/Germany` (`auth`, `targetApp`, `targetDevice`,
+`deadLine`), and `AuthorizedOtherToLoginActivity` confirms it with
+`/app/qrcode/scan` (`login: "true"`).
+
+**This is not a phone-to-phone escape hatch.** The scanner only enters the
+`qrcode` branch when `AppFunSupportUtil.isXtc()` is true, i.e.
+`ApkType == "xtc"`. The global imoo package sends `ApkType: imoo`, so its
+scanner treats such a code as a normal URL instead of authorizing a session.
+`targetApp` values seen in the code (`33`, `35`, `37`) are TV / OPPO-watch /
+HD-app targets, so this flow belongs to the `xtc` device family.
+
+## Family Invitation Code
+
+The "Kopplungscode" on the family-invite screen is **not a login
+credential**. See [`account-model.md`](account-model.md#joining-a-family-invitation-code)
+for the endpoint detail and the live redirect check.
+
 ## Session Token
 
-A successful `randcodeLogin` returns `{"code":"000001","desc":"success","data":"<json string>"}`.
+A successful `randcodeLogin` (or `/app/loginV2`) returns `{"code":"000001","desc":"success","data":"<json string>"}`.
 `data` is a **JSON string**, not an object; the app parses it as
 `SSOLoginResult` and then stores the *raw string* as the ticket:
 

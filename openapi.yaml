@@ -175,7 +175,7 @@ components:
     BearerToken:
       type: http
       scheme: bearer
-      description: JWT or opaque token obtained from /app/login2 or /app/tokenLogin
+      description: Session token from /app/randcodeLogin or /app/loginV2. It is not sent as an HTTP Authorization header — the app puts it in the `token` field of `Base-Request-Param` (see docs/authentication.md).
 
 security:
   - BearerToken: []
@@ -188,7 +188,7 @@ paths:
     get:
       tags: [Authentication]
       summary: Get RSA public key
-      description: Returns the RSA public key used to encrypt passwords before login.
+      description: Returns the 1024-bit X.509 SPKI public key that wraps the per-request AES key (`EncryptKey` header). It does not encrypt passwords.
       security: []
       responses:
         '200': { description: RSA public key, content: { application/json: { schema: { $ref: '#/components/schemas/GenericResponse' } } } }
@@ -246,9 +246,31 @@ paths:
     post:
       tags: [Authentication]
       summary: Request SMS verification code (v2)
+      description: |
+        Live gateway answers 010106 ("Failed to send the verification code") for the
+        test number; see docs/authentication.md → Live status. `data` on success is
+        the randcodeKey that `randcodeLogin` must echo.
       security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userName, areaCode]
+              properties:
+                userName: { type: string, description: mobile number (not `mobilePhone`) }
+                areaCode: { type: string, example: "49" }
+                language: { type: string, example: en_US }
+                codeType:
+                  type: string
+                  enum: ["0", "2", "3"]
+                  description: 0 = register/resend, 2 = reset password, 3 = login
+                captchaId: { type: string }
+                validate: { type: string }
+                userKey: { type: string }
       responses:
-        '200': { description: Code sent }
+        '200': { description: Code sent; `data` is the randcodeKey }
 
   /app/checkRandCode:
     post:
@@ -275,7 +297,9 @@ paths:
   /app/login2:
     post:
       tags: [Authentication]
-      summary: Login with phone + password
+      deprecated: true
+      summary: Login with phone + password (legacy)
+      description: Legacy URL constant present in the SSO request class. The 9.36.71 global build (`com.imoo.watch.global`) never calls it; password login uses `/app/loginV2`. The old "RSA-encrypted password" description does not apply.
       security: []
       requestBody:
         required: true
@@ -285,7 +309,7 @@ paths:
               type: object
               properties:
                 phone: { type: string }
-                password: { type: string, description: RSA-encrypted password }
+                password: { type: string }
                 areaCode: { type: string }
       responses:
         '200': { description: Login token and account info }
@@ -293,16 +317,61 @@ paths:
   /app/loginV2:
     post:
       tags: [Authentication]
-      summary: Login v2
+      summary: Login with phone + password
+      description: |
+        Password login used by MobileService.SolomonIslands → SSONetServiceImpl.K3 →
+        Germany.Fc → Hawaii.Vietnam → Gabon.Israel. The password is plaintext inside
+        the AES-encrypted request body; there is no per-field RSA step. `deviceToken`
+        is the NetEase Yidun captcha token (an empty value is accepted).
       security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userName, password]
+              properties:
+                userName: { type: string, description: mobile number }
+                password: { type: string }
+                days: { type: string, example: "-1" }
+                deviceId: { type: string }
+                appId: { type: string, example: "11" }
+                areaCode: { type: string, example: "49" }
+                nDeviceId: { type: string }
+                deviceToken: { type: string, description: Yidun captcha token, may be empty }
       responses:
-        '200': { description: Login token }
+        '200':
+          description: |
+            Login token (`data` is a JSON string, same shape as randcodeLogin) or an
+            error such as 010402 (wrong account/password; `data` carries attempts left).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenericResponse' }
 
   /app/randcodeLogin:
     post:
       tags: [Authentication]
       summary: Login with SMS code
+      description: |
+        `data` on success is a JSON string; the raw string is the session ticket and
+        `accountId` inside it is the authId. `days` is "-1" in the app.
       security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userName, areaCode, randcode]
+              properties:
+                deviceId: { type: string }
+                userName: { type: string }
+                areaCode: { type: string }
+                randcodeKey: { type: string, description: "data from sendRandCodeV2; may be empty when the send failed" }
+                randcode: { type: string }
+                nDeviceId: { type: string }
+                days: { type: string, example: "-1" }
       responses:
         '200': { description: Login token }
 
@@ -312,6 +381,94 @@ paths:
       summary: Login using existing token
       responses:
         '200': { description: Refreshed token }
+
+  /app/qrcode/token:
+    post:
+      tags: [Authentication]
+      summary: Create a QR-login token (new device)
+      description: |
+        New device calls this to obtain a `ssoc…` token; `/app/qrcode` then resolves
+        it to the QR payload. Live: returns 000001 with a fresh token per call.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                appId: { type: string, example: "11" }
+                deviceId: { type: string }
+                expire: { type: string, example: "300" }
+                machineId: { type: string }
+      responses:
+        '200': { description: QR token }
+
+  /app/qrcode:
+    post:
+      tags: [Authentication]
+      summary: Resolve a QR-login token to its payload
+      description: |
+        Live payload: `auth=<token>&targetApp=<appId>&targetDevice=<deviceId>`.
+        Empty token → 010802 invalid; unknown token → 010801 expired.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token: { type: string }
+                deviceId: { type: string }
+                appId: { type: string, example: "11" }
+                expire: { type: string }
+      responses:
+        '200': { description: QR payload or 010801/010802 }
+
+  /app/qrcode/scan:
+    post:
+      tags: [Authentication]
+      summary: Authorize a QR login from a logged-in device
+      description: |
+        Scanner side. Only reached in `xtc` builds: the app checks
+        `AppFunSupportUtil.isXtc()` (ApkType == "xtc") before handling a `qrcode`
+        URL, so the global imoo build does not authorize these codes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                appId: { type: string, example: "11" }
+                deviceId: { type: string }
+                accountId: { type: string }
+                targetApp: { type: string }
+                targetDevice: { type: string }
+                login: { type: string, example: "true" }
+                auth: { type: string }
+      responses:
+        '200': { description: Authorization result }
+
+  /app/qrcode/login:
+    post:
+      tags: [Authentication]
+      summary: Exchange a QR token for a session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                appId: { type: string, example: "11" }
+                deviceId: { type: string }
+                token: { type: string }
+                days: { type: string, example: "-1" }
+      responses:
+        '200': { description: Login token }
 
   /app/logout:
     post:
@@ -433,35 +590,6 @@ paths:
       summary: Delete account (v2)
       responses:
         '200': { description: Account deleted }
-
-  # ── QR Code Auth ────────────────────────────────────────────────────────────
-  /app/qrcode:
-    post:
-      tags: [QR Code Auth]
-      summary: Generate QR code for login
-      responses:
-        '200': { description: QR code data }
-
-  /app/qrcode/login:
-    post:
-      tags: [QR Code Auth]
-      summary: Poll QR code login status
-      responses:
-        '200': { description: QR login result }
-
-  /app/qrcode/scan:
-    post:
-      tags: [QR Code Auth]
-      summary: Confirm QR code scan
-      responses:
-        '200': { description: Scan confirmed }
-
-  /app/qrcode/token:
-    get:
-      tags: [QR Code Auth]
-      summary: Get token from scanned QR code
-      responses:
-        '200': { description: Auth token }
 
   # ── One-Click Login ─────────────────────────────────────────────────────────
   /app/oneClick/getServer:

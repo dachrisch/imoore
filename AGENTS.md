@@ -22,7 +22,7 @@ Bytecode agrees: `api.watch.okii.com` exists only as `HttpConstants.HOST_NAME_AR
 
 - Swagger UI: the README's editor.swagger.io link renders the raw GitHub `openapi.yaml` — no local setup needed.
 - Optional local validation (not preinstalled, verify before relying on it): `npx @redocly/cli lint openapi.yaml` or `npx @redocly/cli preview openapi.yaml`.
-- The prototype is the only executable component: `cd prototype && npm install && npm test` (offline fixtures) and `npm start` (web UI at `http://localhost:3000`, `GET /api/selftest` for live checks). The spec itself still has no build/test/lint config.
+- The prototype is the only executable component: `cd prototype && npm install && npm test` (offline fixtures) and `npm start` (web UI at `http://localhost:3000`, `GET /api/selftest` for live checks). It implements the SSO envelope, SMS login, **password login via `/app/loginV2`**, and the core-API envelope. `sendRandCodeV2` currently answers `010106` for the test number, so password login is the live fallback. The spec itself still has no build/test/lint config.
 
 ## How the spec was built (and how to extend it)
 
@@ -39,9 +39,9 @@ To add endpoints, repeat this pipeline and reconcile new paths against the exist
 
 `docs/` holds analysis that goes beyond what static analysis could confirm:
 
-- `docs/authentication.md` — login flows (SMS OTP, RSA password, token resume, QR), session token shape, and the admin/member access split.
+- `docs/authentication.md` — login flows (SMS OTP, password via `/app/loginV2`, token resume, QR research), session token shape, the admin/member access split, and the family-invite code.
 - `docs/signing-and-crypto.md` — the request signature (MD5 over url + sorted `k=v` + per-appId secret), the recovered secrets, the AES/RSA envelope, and the full SSO header set. Verified live against `account-oz.okii.com`.
-- `docs/account-model.md` — identity is role-relative to a watch (`mobileaccount`/`watchaccount`/`geniusAccount`), not a profile page. Admin vs member is enforced server-side per endpoint.
+- `docs/account-model.md` — identity is role-relative to a watch (`mobileaccount`/`watchaccount`/`geniusAccount`), not a profile page. Admin vs member is enforced server-side per endpoint; the invitation "Kopplungscode" is a binding reference, not a credential.
 
 Read these before asserting auth/role behavior in generated code or docs.
 
