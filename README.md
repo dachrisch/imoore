@@ -26,7 +26,8 @@ shared API surface; `api.watch.okii.com` appears only as
 `HttpConstants.HOST_NAME_ARRAYS[1]` and is not a working base.
 
 **Login (`/app/*`) does not run on the core host.** It uses
-`https://account.okii.com` (intl: `account-oz.okii.com`), requires an MD5 `sign`
+`https://account-oz.okii.com` for `com.imoo.watch.global`
+(`account.okii.com` for the China/`xtc` cluster), requires an MD5 `sign`
 built from a per-appId secret, and encrypts payloads with AES-128-ECB +
 RSA-1024 (public key from `POST /app/rsakey`). The recovered secrets and the
 full envelope are documented in

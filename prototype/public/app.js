@@ -50,6 +50,7 @@ $("btnCode").onclick = async () => {
       userName: $("userName").value.trim(),
       areaCode: $("areaCode").value.trim(),
       language: $("language").value.trim(),
+      codeType: parseInt($("codeType").value, 10),
     });
     if (r.ok) {
       randcodeKey = r.randcodeKey || "";

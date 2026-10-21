@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSign, parseLoginResult, deviceProfile, ssoTimestamp, coreTimestamp } from "../src/imooClient.js";
+import { buildSign, parseLoginResult, deviceProfile, ssoTimestamp, coreTimestamp, ssoHeaders } from "../src/imooClient.js";
 
 test("buildSign matches the recovered appId 11 vector", () => {
   const url = "https://account.okii.com/app/areaCodeList";
@@ -51,4 +51,20 @@ test("deviceProfile is stable and shaped like the APK's device ids", () => {
   assert.match(a.deviceId, /^[0-9a-f]{32}$/);
   assert.match(a.machineId, /^[0-9a-f]{32}$/);
   assert.match(a.nDeviceId, /^[0-9a-f]{32}$/);
+});
+
+test("ssoHeaders mirrors RequestParamsFactory.initConnection", () => {
+  const h = ssoHeaders("https://account-oz.okii.com");
+  assert.equal(h.Host, "account-oz.okii.com");
+  assert.equal(h.Charset, "utf-8");
+  assert.equal(h["App-Brand"], "imoo");
+  assert.equal(h.ApkType, "imoo");
+  assert.equal(h.version, "A_9.36.71");
+  assert.equal(h.nDeviceId, deviceProfile().nDeviceId);
+  assert.match(h.timestamp, /^\d{13}$/);
+  // The APK also sends App-Checksum, but its native derivation is tied to the
+  // installed APK signature and the live gateway rejects our value (010314).
+  assert.equal(h["App-Checksum"], undefined);
+  assert.equal(h.EncryptType, undefined);
+  assert.equal(ssoHeaders("https://account-oz.okii.com", "abc").EncryptType, "1");
 });

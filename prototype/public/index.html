@@ -39,6 +39,9 @@
   <div class="note">
     Signing, AES/RSA encryption and the encrypted core-API envelope are implemented and verified live
     (see <code>docs/signing-and-crypto.md</code>). Logging in needs a real SMS; the OTP is sent by okii.com to your phone.
+    The live gateway currently answers <code>010106</code> ("Failed to send the verification code") for the test
+    number on both account hosts and all <code>codeType</code> values — see
+    <code>docs/authentication.md</code> → <em>Live status</em>.
   </div>
   <main>
     <div class="card hidden" id="selftestCard">
@@ -52,7 +55,7 @@
       <div class="row">
         <div style="flex:1">
           <label for="areaCode">Area code (no +)</label>
-          <input id="areaCode" value="86" />
+          <input id="areaCode" value="49" />
         </div>
         <div style="flex:3">
           <label for="userName">Mobile number</label>
@@ -60,7 +63,15 @@
         </div>
         <div style="flex:1">
           <label for="language">Language</label>
-          <input id="language" value="en" />
+          <input id="language" value="en_US" />
+        </div>
+        <div style="flex:1">
+          <label for="codeType">Flow</label>
+          <select id="codeType">
+            <option value="3" selected>Login</option>
+            <option value="0">Register</option>
+            <option value="2">Reset password</option>
+          </select>
         </div>
       </div>
       <button id="btnCode">Send code</button>

@@ -130,6 +130,48 @@ POST https://account.okii.com/app/areaCodeList   (signed, AES+RSA)
 The prototype (`prototype/src/imooClient.js`) implements exactly this and
 fetches 172 area codes live.
 
+## SSO request headers
+
+`com.bbk.secureunisignon.common.net.Georgia.Uganda()`
+(`RequestParamsFactory.initConnection`) sets them for every `/app/*` call:
+
+| header | value / source |
+|---|---|
+| `Device-Name` | `URLEncoder.encode(Build.BRAND + "-" + Build.MODEL)` |
+| `Charset` | `utf-8` |
+| `EncryptType` / `EncryptKey` | `1` / `base64(RSA(aesKey))` when encrypted |
+| `Host` | active account host |
+| `App-Brand` | `imoo` for this package, `xtc` otherwise (`AppFunSupportUtil.isImoo`) |
+| `Accept-Language` | `SystemLanguageUtil.getFinalLanguageValue()` (`Locale.toString()`, e.g. `en_US`) |
+| `dataCenterCode` | `AccountUtil.getDataCenterCode()` — empty on a fresh install |
+| `APPGlobeZoneTime` | `TimeZone.getDefault().getID()`, e.g. `Europe/Berlin` |
+| `ApkType` | `AppFunSupportUtil.getApkType()` → `imoo` |
+| `version` | `"A_" + VersionUtil.getVersionName(versionName())` → `A_9.36.71` |
+| `nDeviceId` | `com.xtc.http.Gambia.Iceland()` (persisted device id) |
+| `App-Checksum` | see below |
+| `timestamp` | `String.valueOf(System.currentTimeMillis())` |
+
+`App-Checksum` is the only non-obvious one. Java calls
+`com.xtc.secret.Georgia.HongKong(String)`, which returns a cached value if set,
+otherwise `XTCgetUtilWrapper.getf(String)`. In `librubbish.so`, `getf` is JNI
+entry 5 → `get7` (0x100d8), which:
+
+1. `getSignArray()`: `ActivityThread.currentApplication()` → `getPackageManager()`
+   → `getPackageInfo(pkg, GET_SIGNATURES)` → `Signature[0].toByteArray()` →
+   `CertificateFactory("X.509").generateCertificate(...)` →
+   `Certificate.getEncoded()` (the signing certificate DER, 703 bytes here).
+2. MD5s those bytes and hex-encodes them with the uppercase table at 0x2d130.
+3. `strcat`s the millis argument and calls `get8`, which MD5s the resulting
+   ASCII string, hex-encodes it, and returns that.
+4. The Java caller lowercases the result.
+
+For `base.apk` (signer `CN=xtc`, cert SHA-256 `f4f0…4979`) that derivation yields
+`md5(hexUpper(md5(certDER)) + millis)`, but the live gateway rejects every
+variant we tried with `010314 app校验码无效`. The header is optional for
+`/app/rsakey`, `/app/areaCodeList`, and the OTP endpoints, so the prototype
+omits it. A current installed APK may be required to match the server's
+registered value.
+
 ## Core API envelope (verified live)
 
 The core API (`https://watch-oz.okii.com`) does **not** use the `/app/*` scheme.

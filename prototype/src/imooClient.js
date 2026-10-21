@@ -4,8 +4,10 @@ import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 // ── Hosts ──────────────────────────────────────────────────────────────────────
-// SSO/auth endpoints live on the account host, not the core API host.
-const SSO_HOST = (process.env.IMOORE_SSO_HOST || "https://account.okii.com").replace(/\/$/, "");
+// SSO/auth endpoints live on the account host. The imoo global package
+// (com.imoo.watch.global) resolves ImooAddrApp.getAccountHost() to the -oz
+// mirror; the plain host is the China-facing cluster.
+const SSO_HOST = (process.env.IMOORE_SSO_HOST || "https://account-oz.okii.com").replace(/\/$/, "");
 // Core API (Base-Request-Param auth) — global build defaults to the -oz mirror.
 const API_HOST = (process.env.IMOORE_API_HOST || "https://watch-oz.okii.com").replace(/\/$/, "");
 const CHAT_HOST = (process.env.IMOORE_CHAT_HOST || "https://chat.watch.okii.com").replace(/\/$/, "");
@@ -119,7 +121,7 @@ export function deviceProfile() {
 }
 
 // ── SSO transport ──────────────────────────────────────────────────────────────
-let cachedSsoKey = null; // raw DER buffer
+const ssoKeys = new Map(); // host -> raw DER buffer
 
 async function httpPost(url, body, headers) {
   const res = await fetch(url, { method: "POST", headers, body });
@@ -135,10 +137,11 @@ async function httpPost(url, body, headers) {
 
 // GET /app/rsakey — signed, unencrypted. Response: {code,desc,data:<base64 SPKI>}
 export async function getSsoPublicKey(host = SSO_HOST) {
-  if (cachedSsoKey) return cachedSsoKey;
+  if (ssoKeys.has(host)) return ssoKeys.get(host);
   if (process.env.IMOORE_RSA_PUBKEY) {
-    cachedSsoKey = Buffer.from(process.env.IMOORE_RSA_PUBKEY, "base64");
-    return cachedSsoKey;
+    const der = Buffer.from(process.env.IMOORE_RSA_PUBKEY, "base64");
+    ssoKeys.set(host, der);
+    return der;
   }
   const url = `${host}/app/rsakey`;
   const params = { appId: APP_ID, mac: MAC, timestamp: ssoTimestamp() };
@@ -147,15 +150,34 @@ export async function getSsoPublicKey(host = SSO_HOST) {
   const text = await httpPost(url, body, ssoHeaders(host));
   const json = JSON.parse(text);
   if (json.code !== "000001") throw new Error(`rsakey failed: ${json.code} ${json.desc}`);
-  cachedSsoKey = Buffer.from(json.data, "base64");
-  return cachedSsoKey;
+  const der = Buffer.from(json.data, "base64");
+  ssoKeys.set(host, der);
+  return der;
 }
 
-function ssoHeaders(host, encryptKey) {
+// Header set built by com.bbk.secureunisignon.common.net.Georgia.Uganda()
+// (RequestParamsFactory.initConnection). The endpoints we call work without
+// most of these, but sending them keeps requests shaped like the APK's.
+export function ssoHeaders(host, encryptKey) {
+  const profile = deviceProfile();
+  const now = Date.now();
   const h = {
     "Content-Type": "application/x-www-form-urlencoded",
+    // URLEncoder.encode(Build.BRAND + "-" + Build.MODEL)
+    "Device-Name": process.env.IMOORE_DEVICE_NAME || "samsung-SM-G935F",
     Charset: "utf-8",
     Host: new URL(host).host,
+    "App-Brand": process.env.IMOORE_APP_BRAND || "imoo",
+    "Accept-Language": process.env.IMOORE_LANGUAGE || "en_US",
+    dataCenterCode: process.env.IMOORE_DATA_CENTER_CODE || "",
+    // TimeZone.getDefault().getID()
+    APPGlobeZoneTime: process.env.IMOORE_TIMEZONE || "Europe/Berlin",
+    // AppFunSupportUtil.getApkType()
+    ApkType: process.env.IMOORE_APK_TYPE || "imoo",
+    // "A_" + VersionUtil.getVersionName(versionName())
+    version: `A_${APP_VERSION}`,
+    nDeviceId: profile.nDeviceId,
+    timestamp: String(now),
     "User-Agent": "okhttp/3.12.0",
   };
   if (encryptKey) {
@@ -207,12 +229,16 @@ export async function ssoPostPlain(path, params, host = SSO_HOST, appId = APP_ID
  * POST /app/sendRandCodeV2 — request an SMS OTP.
  * Wire params per Gabon.Venezuela / SSOLoginServiceImpl:
  *   userName, areaCode, language, codeType, appId (+ mac/timestamp/sign)
- * `codeType` is an int in the APK and is sent as its decimal string.
+ * `codeType` is an int in the APK and is sent as its decimal string:
+ *   0 = register / resend, 2 = reset password, 3 = login (existing account).
+ * The typed-number login screen (AccountVerifyLoginActivity) passes 3; the
+ * register screen passes 0. Default here is 3 because the prototype starts
+ * from an existing account, like the normal login flow.
  * Returns the raw {code,desc,data}; `data` is the randcodeKey that the login
  * step must echo back.
  */
 export async function requestSmsCode(
-  { userName, areaCode = "86", language = "en", codeType = 0, captchaId, validate, userKey } = {},
+  { userName, areaCode = "86", language = "en_US", codeType = 3, captchaId, validate, userKey } = {},
   host = SSO_HOST
 ) {
   if (!userName) throw new Error("userName (mobile number) is required");
@@ -275,22 +301,23 @@ export function parseLoginResult(raw) {
 const APP_VERSION = process.env.IMOORE_APP_VERSION || "9.36.71";
 // md5 of META-INF/BNDLTOOL.RSA in the official base.apk (signer CN=xtc).
 const APP_CHECKSUM = process.env.IMOORE_APP_CHECKSUM || "5e2f081103fb40b3d55a324ec93fb6fd";
-// Only used if the server ever rejects the compressed response path.
-let cachedCoreKey = null;
+const coreKeys = new Map(); // host -> raw DER buffer
 
 export async function getCorePublicKey(host = API_HOST) {
-  if (cachedCoreKey) return cachedCoreKey;
+  if (coreKeys.has(host)) return coreKeys.get(host);
   if (process.env.IMOORE_CORE_RSA_PUBKEY) {
-    cachedCoreKey = Buffer.from(process.env.IMOORE_CORE_RSA_PUBKEY, "base64");
-    return cachedCoreKey;
+    const der = Buffer.from(process.env.IMOORE_CORE_RSA_PUBKEY, "base64");
+    coreKeys.set(host, der);
+    return der;
   }
   const res = await fetch(`${host}/rsa`, { headers: { Accept: "application/json" } });
   const json = await res.json();
   if (json.code !== "000001" || !json.data?.publicKey) {
     throw new Error(`core /rsa failed: ${json.code} ${json.desc}`);
   }
-  cachedCoreKey = Buffer.from(json.data.publicKey, "base64");
-  return cachedCoreKey;
+  const der = Buffer.from(json.data.publicKey, "base64");
+  coreKeys.set(host, der);
+  return der;
 }
 
 function authIdFromToken(token) {

@@ -23,7 +23,7 @@ app.use(express.static(join(__dirname, "public")));
 // ── Login (SMS OTP) ────────────────────────────────────────────────────────────
 app.post("/api/login/code", async (req, res) => {
   try {
-    const { userName, mobilePhone, areaCode = "86", language = "en", codeType = 0 } = req.body || {};
+    const { userName, mobilePhone, areaCode = "86", language = "en_US", codeType = 3 } = req.body || {};
     const phone = userName || mobilePhone;
     if (!phone) return res.status(400).json({ error: "userName (mobile number) required" });
     const raw = await requestSmsCode({ userName: phone, areaCode, language, codeType }, SSO_HOST);

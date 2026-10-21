@@ -9,7 +9,7 @@ is the end-to-end map.
 
 | | SSO `/app/*` | Core API |
 |---|---|---|
-| host | `account.okii.com` (intl `account-oz.okii.com`) | `watch-oz.okii.com` |
+| host | `account-oz.okii.com` (this package; `account.okii.com` for `xtc`) | `watch-oz.okii.com` |
 | signature | `sign` request **param**: md5(url + sorted `k=v` + appId secret) | `Eebbk-Sign` header: md5(url + Base-Request-Param + body + random key) |
 | payload | whole body: `base64(AES(json))` | `Base-Request-Param`: `base64(AES(json))` |
 | key transport | `EncryptKey` header: `base64(RSA(aesKey))` | `Eebbk-Key` header: `base64(RSA(key, /rsa pubkey))` |

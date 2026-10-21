@@ -40,7 +40,7 @@ To add endpoints, repeat this pipeline and reconcile new paths against the exist
 `docs/` holds analysis that goes beyond what static analysis could confirm:
 
 - `docs/authentication.md` — login flows (SMS OTP, RSA password, token resume, QR), session token shape, and the admin/member access split.
-- `docs/signing-and-crypto.md` — the request signature (MD5 over url + sorted `k=v` + per-appId secret), the recovered secrets, and the AES/RSA envelope. Verified live against `account.okii.com`.
+- `docs/signing-and-crypto.md` — the request signature (MD5 over url + sorted `k=v` + per-appId secret), the recovered secrets, the AES/RSA envelope, and the full SSO header set. Verified live against `account-oz.okii.com`.
 - `docs/account-model.md` — identity is role-relative to a watch (`mobileaccount`/`watchaccount`/`geniusAccount`), not a profile page. Admin vs member is enforced server-side per endpoint.
 
 Read these before asserting auth/role behavior in generated code or docs.
