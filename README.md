@@ -68,7 +68,9 @@ the official app's SDK. With a rooted phone + frida-server attached, start the
 prototype with `IMOORE_CAPTCHA_BRIDGE=1` and `/api/login/code` will fetch a
 token from the installed app. The full send + verify flow is verified live; the
 details are in
-[`docs/authentication.md`](docs/authentication.md#recaptcha-gate-required-for-otp).
+[`docs/authentication.md`](docs/authentication.md#recaptcha-gate-required-for-otp),
+and the why/limitations in
+[`docs/recaptcha-bridge.md`](docs/recaptcha-bridge.md).
 
 Password login via `/app/loginV2` remains available without the bridge (the
 password is plaintext inside the AES envelope, and `/app/login2` is legacy).

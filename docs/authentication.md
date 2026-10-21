@@ -129,7 +129,7 @@ Without them, every number and `codeType` returns `010106`. With them the
 server returns `000001` and `data` = `randcode_11_<area>-<number>_<codeType>`.
 
 **Live verification (2026-10-22):** `codeType 3` with a token →
-`000001` + `randcode_11_49-015124154206_3`; then `randcodeLogin` with the SMS
+`000001` + `randcode_11_49-<number>_3`; then `randcodeLogin` with the SMS
 code and that key → `000001` + the session token. Full SMS login verified,
 including through the prototype (`/api/login/code` → `/api/login/verify`).
 
@@ -139,6 +139,8 @@ client cannot create one. The prototype bridges it over adb/Frida:
 `prototype/tools/fetch-captcha.js` via `fetch-captcha.py`, and uses the returned
 token in `/api/login/code`. This needs the rooted phone + frida-server; without
 the bridge, sends keep returning `010106` and password login is the fallback.
+See [`recaptcha-bridge.md`](recaptcha-bridge.md) for why the token cannot be
+re-implemented in Node and the bridge's failure modes.
 
 ### Step 2: Submit OTP
 

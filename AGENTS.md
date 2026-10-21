@@ -42,6 +42,7 @@ To add endpoints, repeat this pipeline and reconcile new paths against the exist
 - `docs/authentication.md` — login flows (SMS OTP + reCAPTCHA gate, password via `/app/loginV2`, token resume, QR research), session token shape, the admin/member access split, and the family-invite code.
 - `docs/signing-and-crypto.md` — the request signature (MD5 over url + sorted `k=v` + per-appId secret), the recovered secrets, the AES/RSA envelope, and the full SSO header set. Verified live against `account-oz.okii.com`.
 - `docs/account-model.md` — identity is role-relative to a watch (`mobileaccount`/`watchaccount`/`geniusAccount`), not a profile page. Admin vs member is enforced server-side per endpoint; the invitation "Kopplungscode" is a binding reference, not a credential.
+- `docs/recaptcha-bridge.md` — why `sendRandCodeV2` requires a Google reCAPTCHA token minted by the official app, the Frida/adb bridge, its requirements, and failure modes.
 
 Read these before asserting auth/role behavior in generated code or docs.
 
