@@ -1,115 +1,198 @@
 import crypto from "node:crypto";
 
-const API_HOST = process.env.IMOORE_API_HOST || "https://watch.okii.com";
-const CHAT_HOST = process.env.IMOORE_CHAT_HOST || "https://chat.watch.okii.com";
+// ── Hosts ──────────────────────────────────────────────────────────────────────
+// SSO/auth endpoints live on the account host, not the core API host.
+// The app defaults to account.okii.com; the international mirror is
+// account-oz.okii.com (see docs/signing-and-crypto.md).
+const SSO_HOST = (process.env.IMOORE_SSO_HOST || "https://account.okii.com").replace(/\/$/, "");
+// Core API (Base-Request-Param auth) — global build defaults to the -oz mirror.
+const API_HOST = (process.env.IMOORE_API_HOST || "https://watch-oz.okii.com").replace(/\/$/, "");
+const CHAT_HOST = (process.env.IMOORE_CHAT_HOST || "https://chat.watch.okii.com").replace(/\/$/, "");
 
-// ── Reverse-engineered signing (see docs/auth-protocol.md) ──────────────────────
-// The per-appId secret is obfuscated in the APK (decrypted at runtime). Supply it
-// here once extracted. appId selects which secret the server expects (see doc §3).
-const SIGN_SECRET = process.env.IMOORE_SIGN_SECRET || "";
+// ── Signing ────────────────────────────────────────────────────────────────────
+// Recovered from librubbish.so (`com.xtc.secret.XTCgetUtilWrapper`) — see
+// docs/signing-and-crypto.md. appId selects which secret the server expects.
+const SIGN_SECRETS = {
+  "11": "LKyF8jThHbZfUeTP", // geta  → get2  (XOR {1..5} then right-rotate 4)  ✓ live
+  "31": "CXy5qhZZ0qHkjvgh", // getTeacherA → get9 (rotate 4 then XOR {1..5}) ✓ live
+  "33": "5sacCZns3z9sTcCX", // geth  → get12 (plain constant)               ✓ live
+  "35": "NQIiQkcCIGhfn2s9", // getI  → get13 (plain constant)               ✓ live
+  "37": "thqHjysVOkGETPoY", // getJ  → get14 (plain constant)               ✓ live
+  "48": "5sacCZns3z9sTcCX", // geth — client uses this, server rejected it  ✗ unverified
+};
 const APP_ID = process.env.IMOORE_APP_ID || "11";
-// AES/RSA transforms carry no string constants in the DEX — set once confirmed.
-const AES_ALGO = process.env.IMOORE_AES_ALGO || "aes-128-ecb";
-const RSA_PADDING = process.env.IMOORE_RSA_PADDING || "pkcs1";
+const MAC = process.env.IMOORE_MAC || "64ba24f2457d405dbf40346f96d80934";
 
-const MAC = "64ba24f2457d405dbf40346f96d80934";
-
-function authHeaders(token) {
-  if (!token) return {};
-  const h = process.env.IMOORE_AUTH_HEADER || "Authorization";
-  const p = process.env.IMOORE_AUTH_PREFIX || "Bearer";
-  return { [h]: p ? `${p} ${token}` : token };
+function secretFor(appId) {
+  const s = SIGN_SECRETS[String(appId)];
+  if (!s) throw new Error(`no recovered sign secret for appId ${appId}`);
+  return s;
 }
 
-function md5Sign(path, params) {
-  const keys = Object.keys(params).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-  const joined = keys.map((k) => `${k}=${params[k]}`).join("##");
-  const input = path + joined + SIGN_SECRET;
-  return crypto.createHash("md5").update(input, "utf8").digest("hex").toLowerCase();
+// Java: SimpleDateFormat("yyyy-MM-dd kk:mm:ss") — kk is 01..24, not 00..23.
+function ssoTimestamp(d = new Date()) {
+  const p = (n) => String(n).padStart(2, "0");
+  const hour = d.getHours() === 0 ? 24 : d.getHours();
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(hour)}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-let rsaPublicKey = null;
-
-async function getRsaPublicKey(host) {
-  if (rsaPublicKey) return rsaPublicKey;
-  const data = await call("GET", "/app/rsakey", host, null, null);
-  // shape of /app/rsakey response is unconfirmed; cache whatever string it returns
-  rsaPublicKey = typeof data === "string" ? data : JSON.stringify(data);
-  return rsaPublicKey;
+// md5(url + "k=v" sorted case-insensitively, joined by "##" + secret).toLowerCase()
+export function buildSign(url, params, appId = APP_ID) {
+  const kv = Object.keys(params)
+    .map((k) => `${k}=${params[k]}`)
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  return crypto
+    .createHash("md5")
+    .update(url + kv.join("##") + secretFor(appId), "utf8")
+    .digest("hex")
+    .toLowerCase();
 }
 
+// ── Crypto ─────────────────────────────────────────────────────────────────────
+// AES/ECB/PKCS5Padding with a 16-char UTF-8 key; RSA/ECB/PKCS1Padding (X.509 SPKI).
 function aesEncrypt(plain, aesKey) {
-  const iv = AES_ALGO.includes("ecb") ? null : Buffer.alloc(16, 0);
-  const c = crypto.createCipheriv(AES_ALGO, Buffer.from(aesKey, "utf8"), iv);
-  return Buffer.concat([c.update(Buffer.from(plain, "utf8")), c.final()]).toString("base64");
+  const c = crypto.createCipheriv("aes-128-ecb", Buffer.from(aesKey, "utf8"), null);
+  return Buffer.concat([c.update(Buffer.from(plain, "utf8")), c.final()]);
 }
 
-function rsaEncrypt(aesKey, pubKey) {
-  const padding = RSA_PADDING === "oaep" ? crypto.constants.RSA_PKCS1_OAEP_PADDING : crypto.constants.RSA_PKCS1_PADDING;
-  return crypto.publicEncrypt({ key: pubKey, padding }, Buffer.from(aesKey, "utf8")).toString("base64");
+function aesDecrypt(buf, aesKey) {
+  const d = crypto.createDecipheriv("aes-128-ecb", Buffer.from(aesKey, "utf8"), null);
+  return Buffer.concat([d.update(buf), d.final()]).toString("utf8");
 }
 
-// Build + send a fully signed & encrypted request (the real client flow).
-export async function signedPost(path, params, host = API_HOST, token = null) {
-  const full = {
-    ...params,
-    mac: MAC,
-    timestamp: String(Date.now()),
-    appId: APP_ID,
-  };
-  full.sign = md5Sign(path, full);
-  const data = JSON.stringify(full);
-  const aesKey = crypto.randomBytes(8).toString("hex") + crypto.randomBytes(8).toString("hex"); // 16 chars
-  const body = aesEncrypt(data, aesKey);
-  const pub = await getRsaPublicKey(host);
-  const encryptKey = rsaEncrypt(aesKey, pub);
+function rsaEncryptAesKey(aesKey, spkiDer) {
+  const key = crypto.createPublicKey({ key: spkiDer, format: "der", type: "spki" });
+  return crypto
+    .publicEncrypt({ key, padding: crypto.constants.RSA_PKCS1_PADDING }, Buffer.from(aesKey, "utf8"))
+    .toString("base64");
+}
 
-  const headers = {
-    "Content-Type": "text/plain;charset=UTF-8",
+function newAesKey() {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = crypto.randomBytes(16);
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+
+// ── SSO transport ──────────────────────────────────────────────────────────────
+let cachedPubKey = null; // raw DER buffer
+
+async function httpPost(url, body, headers) {
+  const res = await fetch(url, { method: "POST", headers, body });
+  const text = await res.text();
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status} on ${url}`);
+    err.status = res.status;
+    err.body = text;
+    throw err;
+  }
+  return text;
+}
+
+// GET /app/rsakey — signed, unencrypted. Response: {code,desc,data:<base64 SPKI>}
+async function getRsaPublicKey(host = SSO_HOST) {
+  if (cachedPubKey) return cachedPubKey;
+  if (process.env.IMOORE_RSA_PUBKEY) {
+    cachedPubKey = Buffer.from(process.env.IMOORE_RSA_PUBKEY, "base64");
+    return cachedPubKey;
+  }
+  const url = `${host}/app/rsakey`;
+  const params = { appId: APP_ID, mac: MAC, timestamp: ssoTimestamp() };
+  params.sign = buildSign(url, params, APP_ID);
+  const body = Object.keys(params).map((k) => `${k}=${params[k]}`).join("&");
+  const text = await httpPost(url, body, ssoHeaders(host));
+  const json = JSON.parse(text);
+  if (json.code !== "000001") throw new Error(`rsakey failed: ${json.code} ${json.desc}`);
+  cachedPubKey = Buffer.from(json.data, "base64");
+  return cachedPubKey;
+}
+
+function ssoHeaders(host, encryptKey) {
+  const h = {
+    "Content-Type": "application/x-www-form-urlencoded",
     Charset: "utf-8",
-    EncryptType: "1",
-    EncryptKey: encryptKey,
     Host: new URL(host).host,
-    timestamp: full.timestamp,
+    "User-Agent": "okhttp/3.12.0",
   };
-  if (token) Object.assign(headers, authHeaders(token));
+  if (encryptKey) {
+    h.EncryptType = "1";
+    h.EncryptKey = encryptKey;
+  }
+  return h;
+}
 
+/**
+ * Signed + AES-encrypted SSO call.
+ * Body: base64(AES-ECB-PKCS5(JSON(params))); header EncryptKey = base64(RSA(aesKey)).
+ * Response: base64 ciphertext whose plaintext is the usual {code,desc,data} JSON.
+ */
+export async function ssoPost(path, params, host = SSO_HOST, appId = APP_ID) {
   const url = `${host}${path}`;
-  const resp = await fetch(url, { method: "POST", headers, body });
-  const text = await resp.text();
+  const full = { ...params, appId, mac: MAC, timestamp: ssoTimestamp() };
+  full.sign = buildSign(url, full, appId);
+
+  const pub = await getRsaPublicKey(host);
+  const aesKey = newAesKey();
+  const body = aesEncrypt(JSON.stringify(full), aesKey).toString("base64");
+  const encryptKey = rsaEncryptAesKey(aesKey, pub);
+
+  const text = await httpPost(url, body, ssoHeaders(host, encryptKey));
   let json;
-  try { json = JSON.parse(text); } catch { json = { __raw__: text }; }
-  if (!resp.ok) {
-    const err = new Error(`HTTP ${resp.status} on ${path}`);
-    err.status = resp.status; err.body = json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = JSON.parse(aesDecrypt(Buffer.from(text, "base64"), aesKey));
+  }
+  return json;
+}
+
+/** Signed, unencrypted call (used by endpoints that have no payload). */
+export async function ssoPostPlain(path, params, host = SSO_HOST, appId = APP_ID) {
+  const url = `${host}${path}`;
+  const full = { ...params, appId, mac: MAC, timestamp: ssoTimestamp() };
+  full.sign = buildSign(url, full, appId);
+  const body = Object.keys(full).map((k) => `${k}=${full[k]}`).join("&");
+  return JSON.parse(await httpPost(url, body, ssoHeaders(host)));
+}
+
+// ── Public helpers used by the prototype UI ────────────────────────────────────
+export async function requestSmsCode({ mobilePhone, areaCode }, host = SSO_HOST) {
+  return ssoPost("/app/sendRandCodeV2", { mobilePhone, areaCode }, host);
+}
+
+export async function loginWithSmsCode({ mobilePhone, areaCode, randcode }, host = SSO_HOST) {
+  return ssoPost("/app/randcodeLogin", { mobilePhone, areaCode, randcode }, host);
+}
+
+export async function areaCodeList(host = SSO_HOST) {
+  return ssoPost("/app/areaCodeList", {}, host);
+}
+
+// Core API: no Authorization header exists in this app. Auth travels inside
+// `Base-Request-Param` (with authId + Eebbk-Sign); see docs/authentication.md.
+export async function proxy(method, path, host, token, body) {
+  const url = `${host}${path}`;
+  const headers = { "Content-Type": "application/json", Accept: "application/json" };
+  if (token) {
+    headers["Base-Request-Param"] = JSON.stringify({ token, appId: APP_ID });
+    if (process.env.IMOORE_AUTH_ID) headers.authId = process.env.IMOORE_AUTH_ID;
+  }
+  const opts = { method, headers };
+  if (body !== null && body !== undefined && method !== "GET") opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { __raw__: text };
+  }
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status} on ${method} ${url}`);
+    err.status = res.status;
+    err.body = json;
     throw err;
   }
   return json;
 }
 
-async function call(method, path, host, token, body) {
-  const url = `${host}${path}`;
-  const headers = { "Content-Type": "application/json", Accept: "application/json", ...authHeaders(token) };
-  const opts = { method, headers };
-  if (body !== null && body !== undefined && method !== "GET") opts.body = JSON.stringify(body);
-  const resp = await fetch(url, opts);
-  const text = await resp.text();
-  let json;
-  try { json = JSON.parse(text); } catch { json = { __raw__: text }; }
-  if (!resp.ok) {
-    const err = new Error(`HTTP ${resp.status} on ${method} ${url}`);
-    err.status = resp.status; err.body = json; throw err;
-  }
-  return json;
-}
-
-// Legacy/plain proxy (no signing) — used by the chat composer for raw probing.
-export async function requestSmsCode({ mobilePhone, areaCode }, host = API_HOST) {
-  return signedPost("/app/sendRandCodeV2", { mobilePhone, areaCode }, host);
-}
-export async function loginWithSmsCode({ mobilePhone, areaCode, randcode }, host = API_HOST) {
-  return signedPost("/app/randcodeLogin", { mobilePhone, areaCode, randcode }, host);
-}
-export async function proxy(method, path, host, token, body) {
-  return call(method, path, host, token, body);
-}
+export { SSO_HOST, API_HOST, CHAT_HOST, APP_ID };

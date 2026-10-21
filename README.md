@@ -17,7 +17,22 @@ Reverse-engineered REST API reference for the **imoo Watch** companion app (`com
 | Points | `https://points.okii.com` | Points, reward tasks |
 | CDN | `https://watch.okii.com` | Announcements, media assets |
 
-International region mirrors exist at `*-oz.okii.com` (e.g. `api-oz.okii.com`).
+International region mirrors exist at `*-oz.okii.com` (e.g. `watch-oz.okii.com`).
+For the global package (`com.imoo.watch.global`) the mirror is the built-in
+default: `AppUtil.getAddrApp()` returns `ImooAddrApp`, whose
+`getFormalDefault()` is `https://watch-oz.okii.com` — the value
+`DomainManager.serverUrl` is initialised from. The table above documents the
+shared API surface; `api.watch.okii.com` appears only as
+`HttpConstants.HOST_NAME_ARRAYS[1]` and is not a working base.
+
+**Login (`/app/*`) does not run on the core host.** It uses
+`https://account.okii.com` (intl: `account-oz.okii.com`), requires an MD5 `sign`
+built from a per-appId secret, and encrypts payloads with AES-128-ECB +
+RSA-1024 (public key from `POST /app/rsakey`). The recovered secrets and the
+full envelope are documented in
+[`docs/signing-and-crypto.md`](docs/signing-and-crypto.md) — the prototype in
+`prototype/` implements it and works against the live service.
+
 
 ## Methodology
 

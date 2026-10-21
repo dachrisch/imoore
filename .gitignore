@@ -2,3 +2,6 @@
 
 # node deps (installed via npm install)
 prototype/node_modules/
+
+# native split extraction
+native/

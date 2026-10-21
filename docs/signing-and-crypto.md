@@ -1,0 +1,147 @@
+# Signing & Crypto
+
+Everything here was recovered from the shipped artifacts (`base.apk` +
+`split_config.arm64_v8a.apk` → `lib/arm64-v8a/librubbish.so`) and then verified
+against the live SSO endpoint. No device instrumentation was needed.
+
+## TL;DR
+
+```
+sign        = md5( url + "k1=v1##k2=v2" + secret ).toLowerCase()
+              (keys sorted case-insensitively, url includes scheme + host)
+body        = base64( AES-128-ECB/PKCS5( JSON(params) , aesKey ) )
+EncryptKey  = base64( RSA-1024-PKCS1v1.5( aesKey , server_pubkey ) )
+response    = base64( AES-128-ECB/PKCS5( json , aesKey ) )
+aesKey      = 16 random ASCII chars, per request
+```
+
+`POST https://account.okii.com/app/<endpoint>` with
+`Content-Type: application/x-www-form-urlencoded`, `Charset: utf-8`,
+`EncryptType: 1`, `EncryptKey: <above>`, `Host: account.okii.com`.
+
+`/app/rsakey` is itself signed but **not** encrypted: the body is the plain
+`k=v&k=v` string and the response is JSON with `data` = base64 X.509 SPKI.
+
+## Signing
+
+`com.bbk.secureunisignon.common.request.Gabon.Iran(String url, Map params)`:
+
+1. `String[] kv = params.map { "$k=$v" }`
+2. `Arrays.sort(kv, String.CASE_INSENSITIVE_ORDER)`
+3. `sb = url` ; `sb += kv.join("##")` — note: **no** separator between `url`
+   and the first pair.
+4. `sb += secret`
+5. `md5(sb).toUpperCase()` in `com.xtc.watch.util.Uruguay.Gabon`, then
+   `.toLowerCase(Locale.US)` in `Iran`.
+
+`url` is the full request URL (`https://account.okii.com/app/...`), not the
+path — the URL constants are built by `Gabon.Chad(prefix)` as
+`prefix + host + path` and the same string is passed into `Iran`.
+
+Common params added by `Gabon.Hawaii(hawaii, url, appId)`:
+
+| param | value |
+|---|---|
+| `appId` | per-endpoint, default `11` for the imoo Watch build |
+| `mac` | `com.bbk.secureunisignon.common.net.biz.Hawaii.Hawaii`, falling back to the constant `64ba24f2457d405dbf40346f96d80934` |
+| `timestamp` | `SimpleDateFormat("yyyy-MM-dd kk:mm:ss")` — `kk` = 01..24, device local time |
+| `sign` | the hash above |
+
+## Secrets
+
+Selected by `appId` in `Iran`; each is a native getter in `librubbish.so`
+(`com.xtc.secret.Georgia.*`), registered dynamically from `JNI_OnLoad`.
+
+| appId | secret | native | live check |
+|---|---|---|---|
+| 11 | `LKyF8jThHbZfUeTP` | `geta` → `get2` | ✅ `000001 success` |
+| 31 | `CXy5qhZZ0qHkjvgh` | `getTeacherA` → `get9` | ✅ `000001 success` |
+| 33 | `5sacCZns3z9sTcCX` | `geth` → `get12` | ✅ `000001 success` |
+| 35 | `NQIiQkcCIGhfn2s9` | `getI` → `get13` | ✅ `000001 success` |
+| 37 | `thqHjysVOkGETPoY` | `getJ` → `get14` | ✅ `000001 success` |
+| 48 | `5sacCZns3z9sTcCX` (same as 33 per client code) | `geth` | ❌ server: `签名无效` — unresolved |
+
+### How `get2`/`get9` are obfuscated
+
+`get12`/`get13`/`get14` just load a 16-byte `.rodata` constant and return it
+through `NewStringUTF`. `get2` (appId 11) and `get9` (appId 31) additionally
+XOR with `keyXOR` (`.data:0x49028` = `{1,2,3,4,5}`) and rotate the string.
+
+The rotation is a `std::reverse`-style sequence that the compiler split into
+three loops — full reverse, then reverse `[0..3]`, then reverse `[4..n-1]` —
+which composes to **rotate right by 4**. Miss this and you get a plausible but
+wrong key (`FyKLPTeUfZbHhTj8`), which the server rejects.
+
+* `get2`: XOR with `keyXOR[i % 5]` **then** rotate right 4.
+* `get9`: rotate right 4 **then** XOR with `keyXOR[i % 5]`.
+
+## Crypto
+
+The five `XTCgetUtilWrapper` crypto natives are **trampolines**, not crypto code:
+`code1/code2/code3/decode1/decode2` call
+`CallStaticObjectMethod(clazz, "d/b/a/A1", e1|e2|pe|d1|d2, ...)`.
+
+`d.b.a.A1.<clinit>` builds the algorithm strings by Base64-decoding index
+arrays against the standard alphabet:
+
+| field | decoded |
+|---|---|
+| `A` | `AES` |
+| `B` | `RSA` |
+| `C` | `AES/ECB/PKCS5Padding` |
+| `D` | `RSA/ECB/PKCS1Padding` |
+
+| wrapper | A1 method | meaning |
+|---|---|---|
+| `codea` | `e1` | AES encrypt String → Base64 |
+| `codeb` | `e2` | AES encrypt byte[] → Base64 |
+| `codec` | `pe` | RSA encrypt with public key (`gp` = X.509 SPKI) |
+| `decodea` | `d1` | AES decrypt String → String |
+| `decodeb` | `d2` | AES decrypt String → byte[] |
+
+Key length is 16 bytes (`SecretKeySpec(key.getBytes("UTF-8"), "AES")`), no IV →
+ECB. The server key is 1024-bit RSA.
+
+## Hosts
+
+| constant | value |
+|---|---|
+| `Gabon.Gabon` / `Gabon.Hawaii` (default SSO host) | `account.okii.com` |
+| `Gabon.Gambia` (international mirror) | `account-oz.okii.com` |
+| core API (`DomainManager.serverUrl`) | `https://watch-oz.okii.com` for this package |
+
+`Gabon.Colombia(isOfficial, serverIp)` sets `Hawaii` then rebuilds every URL
+with `Chad(prefix)`. `serverIp` comes from `DomainManager.getSsoAddr()`, which
+`com.xtc.settings.appconfig.Germany.Gabon` fills from the remote domain
+config's `SsoDomain`. Before that config arrives, the default is
+`account.okii.com`.
+
+## Verification
+
+```
+POST https://account.okii.com/app/rsakey   (signed, plain)
+  → {"code":"000001","desc":"success","data":"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQ..."}
+
+POST https://account.okii.com/app/areaCodeList   (signed, AES+RSA)
+  → base64 ciphertext → decrypts to
+    {"code":"000001","desc":"success","data":"[{\"areaCode\":\"86\",...}]"}
+```
+
+The prototype (`prototype/src/imooClient.js`) implements exactly this and
+fetches 172 area codes live.
+
+## Reproducing
+
+```sh
+tools/pull-native.sh                       # adb pull splits, extract lib/*
+tools/inspect-native.sh <path>/librubbish.so
+```
+
+Static mapping aids:
+
+- `JNI_OnLoad` (0xeebc) registers 18 natives with a `JNINativeMethod` table at
+  `0x45a90` (18 × 24 bytes; names/signatures via `R_AARCH64_RELATIVE`,
+  function pointers via `R_AARCH64_ABS64`).
+- `JNI_OnLoad` also calls `ptrace(PTRACE_TRACEME)` and returns `-1` if it
+  fails — that is the anti-debug behaviour, unrelated to the missing-library
+  crash seen with the repackaged APK.

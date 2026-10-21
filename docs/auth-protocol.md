@@ -33,13 +33,27 @@ In `com/bbk/secureunisignon/common/request/Gabon.Iran(String url, Map params)`:
 sign = md5( path + "k=v##k=v##…" + secret ).lower()
 ```
 
-## 3. The secret (appId-dependent, OBFUSCATED)
+## 3. The secret (appId-dependent, OBFUSCATED — and NATIVE)
 
 `Iran` picks the secret from `com.xtc.secret.Georgia` by `appId` value:
 `31→Uganda`, `33→Venezuela`, `35→Greece`, `37→Guinea`, `48→Venezuela`, else→`Ukraine`.
-These return strings that are **decrypted at runtime** from byte arrays via
-`XTCgetUtilWrapper.codeb(bytes, key)` — no plain-text constant in the DEX.
-→ The literal secret must be obtained by replicating `codeb` or via dynamic analysis (Frida).
+
+These return strings that are produced by **`native` methods** in
+`com.xtc.secret.XTCgetUtilWrapper` — `getDebugg()/getI()/getJ()/...` and the
+`codea/codeb/codec/decodea/decodeb` ciphers are all `public static native`,
+loaded via `System.loadLibrary("rubbish")` (i.e. `librubbish.so`).
+
+**`librubbish.so` is NOT present in the APK we have** (only frida libs were added
+during repackaging). It is almost certainly **downloaded at runtime** from a CDN.
+So there is no plain-text constant and no DEX-resident byte array to replicate —
+obtaining the secret requires either the native `.so` (fetched + reversed) or a
+live, hooked run.
+
+> **Conclusion (2026-08-28):** extracting the literal secret is a rabbit hole.
+> The frida-gadget repackage native-crashes the app on launch (the native lib runs
+> anti-tamper / `/proc/self/maps` frida checks and `abort()`s), and the lib isn't
+> even in the APK. The prototype therefore takes the secret as a manual input
+> (`IMOORE_SIGN_SECRET`); see §6.
 
 ## 4. Body encryption (every request)
 
@@ -51,9 +65,11 @@ In `com/bbk/secureunisignon/common/net/Georgia`:
 4. `body = AES_encrypt(data, aesKey)` — `secret.Georgia.Gabon(data, aesKey)`; sent as POST body.
 5. Response is `AES_decrypt(body, aesKey)` (`secret.Georgia.Germany`).
 
-The AES/RSA `Cipher` transforms carry **no string constants** in the DEX (obfuscated),
-so the exact mode/padding (e.g. `AES/ECB/PKCS5Padding`, `RSA/ECB/PKCS1Padding`) must be
-confirmed by replicating `XTCgetUtilWrapper.codea`/`codeb` or dynamic tracing.
+The AES/RSA `Cipher` transforms are implemented by the **native** methods
+`XTCgetUtilWrapper.codea/codeb/codec/decodea/decodeb` (see §3) — there are no
+Java constants for the mode/padding, so the exact transform (e.g.
+`AES/ECB/PKCS5Padding`, `RSA/ECB/PKCS1Padding`) lives in `librubbish.so` and must
+be confirmed by reversing that native lib.
 
 ## 5. Request headers (`initConnection`)
 
@@ -95,13 +111,43 @@ Verified on a live device `2C211FDH3000JA` running `com.imoo.watch.global`
 2. **Root + Frida** (most reliable): hook `com.xtc.secret.Georgia.Ukraine()`
    (and siblings) for the per-appId `secret`; hook `javax.crypto.Cipher` /
    `MessageDigest` for the AES/RSA transforms; hook `XTCgetUtilWrapper.codea/codeb`.
+   *Practical blocker (2026-08-28):* the app **cannot be rooted** on this S7
+   (bootloader rejects custom BOOT even with OEM unlock ON), and the no-root
+   **frida-gadget repackage native-crashes the app on launch** — `librubbish.so`
+   runs anti-tamper that aborts when it sees frida in `/proc/self/maps`. The
+   gadget *did* load once (port 27042 listened, `frida-ps` connected) but the
+   process then dies; subsequent launches crash immediately. With no root, the
+   tombstone can't be read to debug it.
 3. **Enable console logging in-app**, then `adb logcat -b all` during a real login
    — the `preMd5` / `AES的Key` lines print in plaintext. Requires reaching the
    hidden debug toggle in the app UI (not exported, so must be tapped).
 
+> **The native lib is not in the APK.** `librubbish.so` is loaded at runtime, so
+> even static DEX analysis can't reach the secrets or transforms — they require
+> fetching + reversing that `.so`. Considered a rabbit hole for this project.
+
+## 6. Status & prototype usage
+
+Full automation is **not achievable** without the literal secret (and, to encrypt
+the body, the native AES/RSA transforms + the gated server public key). The
+prototype (`prototype/src/imooClient.js`) implements everything that *is*
+knowable from the DEX and takes the unknowns as inputs:
+
+| Input | Env var | Notes |
+|---|---|---|
+| sign secret | `IMOORE_SIGN_SECRET` | the one piece that can't be derived; supply per appId |
+| appId | `IMOORE_APP_ID` | default `11` |
+| AES transform | `IMOORE_AES_ALGO` | default `aes-128-ecb` (unconfirmed) |
+| RSA padding | `IMOORE_RSA_PADDING` | default `pkcs1` (unconfirmed) |
+| RSA pubkey | fetched at runtime | **gated**: `GET /app/rsakey` returns `000007` without proper (signed) params, so a valid sign is needed first → circular; supply manually if required |
+
+`/app/rsakey` is **not** a free GET — it returns
+`{"code":"000007","desc":"request parameter is invalid."}` without the common
+params/sign, confirming the pubkey is itself behind the auth gate.
+
 ## Remaining unknowns to fully automate login
-- exact AES `Cipher` transform + IV, and RSA padding
-- the server public-key wire format from `/app/rsakey`
-- the per-appId `secret` literal (obfuscated; see "How to actually extract" above)
+- the per-appId `secret` literal (native `librubbish.so`; rabbit hole — see §3)
+- exact AES `Cipher` transform + IV, and RSA padding (native `librubbish.so`)
+- the server public-key wire format from `/app/rsakey` (and how to call it unsigned)
 - the app's `appId` integer
-- (device) whether the Mars XLog is encrypted and where the decode key lives
+- (device) rooting this S7 is impossible; no-root frida is blocked by native anti-tamper
