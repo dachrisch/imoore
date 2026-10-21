@@ -56,6 +56,29 @@ credential**:
 So the code only becomes usable inside the app **after** a session exists
 (SMS or password login). It cannot create a session by itself.
 
+### Bind endpoint
+
+The code is consumed by `POST /smartwatch/watchaccount/bindnumber`:
+
+```json
+{ "bindNumber": "akatbiwcbzpbpowok", "randcode": "<optional>" }
+```
+
+(`WatchAccountHttpService.getByBindNumber`, called from `BindNumberHelper` →
+`Guinea.A2` → `http/Germany.Gabon`; `randcode` is omitted when empty.)
+
+Live check (2026-10-21) without a session:
+
+```
+POST https://watch-oz.okii.com/smartwatch/watchaccount/bindnumber
+{"bindNumber":"akatbiwcbzpbpowok"}
+→ HTTP 502  {"code":"100500","desc":"api gateway error"}
+```
+
+`/smartwatch/mobilewatch` without a token answers `000004` (business error),
+so `100500` here is the gateway rejecting the unauthenticated call before any
+bind logic. The prototype exposes this as `POST /api/bind` (requires `token`).
+
 ## Family Group
 
 Members are gathered into a family group for group chat:

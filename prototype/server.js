@@ -6,6 +6,7 @@ import {
   loginWithSmsCode,
   loginWithPassword,
   remainingPasswordAttempts,
+  bindWithCode,
   areaCodeList,
   parseLoginResult,
   coreRequest,
@@ -95,6 +96,21 @@ app.post("/api/login/password", async (req, res) => {
     });
   } catch (err) {
     res.status(502).json({ error: String(err?.message || err) });
+  }
+});
+
+// ── Bind / join by invitation code ─────────────────────────────────────────────
+// The 16-char "Kopplungscode" is a core-API bindNumber, not a login credential.
+// This route performs the real bind and therefore requires a session token.
+app.post("/api/bind", async (req, res) => {
+  try {
+    const { bindNumber, randcode = "", token = "", authId } = req.body || {};
+    if (!bindNumber) return res.status(400).json({ error: "bindNumber (coupling code) required" });
+    if (!token) return res.status(401).json({ error: "a session token is required; log in first" });
+    const data = await bindWithCode({ bindNumber, randcode, token, authId }, API_HOST);
+    res.json({ ok: data.code === "000001", code: data.code, desc: data.desc, raw: data });
+  } catch (err) {
+    res.status(502).json({ error: String(err?.message || err), raw: err?.body ?? null });
   }
 });
 

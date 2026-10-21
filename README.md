@@ -54,6 +54,7 @@ Endpoints worth knowing:
 | `POST /api/login/code` | `sendRandCodeV2` — sends a real SMS |
 | `POST /api/login/verify` | `randcodeLogin` — returns `token` + `authId` |
 | `POST /api/login/password` | `/app/loginV2` — password login, returns `token` + `authId` and the attempts-left counter on `010402` |
+| `POST /api/bind` | `/smartwatch/watchaccount/bindnumber` — bind/join with an invitation code; needs `token` |
 | `POST /api/area-codes` | Live `areaCodeList` (176 codes) |
 | `GET /api/watches`, `/api/groups`, `/api/members`, `POST /api/proxy` | Authenticated core calls (`token` + `authId`) |
 

@@ -124,6 +124,25 @@
       </div>
       <div id="chatOut"></div>
 
+      <h3 style="margin-top:16px">Bind / join <span class="tag">invitation code</span></h3>
+      <p class="hint">
+        Calls <code>/smartwatch/watchaccount/bindnumber</code> with a real session. This performs a
+        real bind; the admin still has to approve the family join.
+      </p>
+      <div class="row">
+        <div style="flex:3">
+          <label for="bindNumber">Kopplungscode / bindNumber</label>
+          <input id="bindNumber" placeholder="16-character code from the invite" />
+        </div>
+        <div style="flex:1">
+          <label for="bindRandcode">randcode (optional)</label>
+          <input id="bindRandcode" />
+        </div>
+      </div>
+      <button id="btnBind" class="secondary">Bind with code</button>
+      <div id="bindStatus" class="status"></div>
+      <pre id="bindRaw" class="hidden"></pre>
+
       <h3 style="margin-top:16px">Custom request</h3>
       <div class="row">
         <div style="flex:2">

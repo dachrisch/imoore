@@ -2303,10 +2303,26 @@ paths:
 
   /smartwatch/watchaccount/bindnumber:
     post:
-      tags: [Watch Settings]
-      summary: Bind phone number to watch account
+      tags: [Watch Account]
+      summary: Look up / bind a watch by invitation code
+      description: |
+        Body is the 16-character "Kopplungscode" (`bindNumber`) plus an optional
+        `randcode` (`WatchAccountHttpService.getByBindNumber`, reached from
+        BindNumberHelper → Guinea.A2 → http/Germany.Gabon). Requires a session:
+        an anonymous call is rejected at the gateway with 100500.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bindNumber]
+              properties:
+                bindNumber: { type: string }
+                randcode: { type: string }
       responses:
-        '200': { description: Number bound }
+        '200': { description: Watch info / bind result }
+        '502': { description: Gateway rejection (e.g. 100500 without a session) }
 
   /smartwatch/watchaccount/getUpdateBirthdayCount/{watchId}:
     get:

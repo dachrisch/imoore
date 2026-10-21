@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSign, parseLoginResult, deviceProfile, ssoTimestamp, coreTimestamp, ssoHeaders, remainingPasswordAttempts } from "../src/imooClient.js";
+import { buildSign, parseLoginResult, deviceProfile, ssoTimestamp, coreTimestamp, ssoHeaders, remainingPasswordAttempts, bindWithCode } from "../src/imooClient.js";
 
 test("buildSign matches the recovered appId 11 vector", () => {
   const url = "https://account.okii.com/app/areaCodeList";
@@ -49,6 +49,11 @@ test("remainingPasswordAttempts reads the loginV2 010402 counter", () => {
   assert.equal(remainingPasswordAttempts({ code: "010402", desc: "账号名或密码错误", data: "0" }), 0);
   assert.equal(remainingPasswordAttempts({ code: "000001", data: 2 }), null);
   assert.equal(remainingPasswordAttempts(null), null);
+});
+
+test("bindWithCode refuses to run without a code or a session token", async () => {
+  await assert.rejects(() => bindWithCode({ bindNumber: "akatbiwcbzpbpowok" }), /session token/);
+  await assert.rejects(() => bindWithCode({ token: "t" }), /bindNumber/);
 });
 
 test("deviceProfile is stable and shaped like the APK's device ids", () => {

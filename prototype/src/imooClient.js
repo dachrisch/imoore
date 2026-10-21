@@ -440,4 +440,20 @@ export async function proxy(method, path, host, token, body) {
   return coreRequest(method, path, { token, body, host });
 }
 
+/**
+ * POST /smartwatch/watchaccount/bindnumber — look up/bind a watch by its
+ * `bindNumber`, the 16-character code shown as "Kopplungscode" on the
+ * family-invite screen (`WatchAccountHttpService.getByBindNumber`, reached
+ * from BindNumberHelper -> Guinea.A2 -> http/Germany.Gabon).
+ * Requires a real core session: anonymous calls are rejected at the gateway
+ * (100500). `randcode` is optional and only sent when non-empty.
+ */
+export async function bindWithCode({ bindNumber, randcode = "", token, authId } = {}, host = API_HOST) {
+  if (!bindNumber) throw new Error("bindNumber (coupling code) is required");
+  if (!token) throw new Error("a session token is required to bind");
+  const body = { bindNumber };
+  if (randcode) body.randcode = randcode;
+  return coreRequest("POST", "/smartwatch/watchaccount/bindnumber", { token, authId, body, host });
+}
+
 export { SSO_HOST, API_HOST, CHAT_HOST, APP_ID, MAC };

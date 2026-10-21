@@ -183,6 +183,39 @@ $("btnGroups").onclick = () =>
 $("btnMembers").onclick = () =>
   runCore("btnMembers", () => coreGet("members"));
 
+$("btnBind").onclick = async () => {
+  const btn = $("btnBind");
+  const bindNumber = $("bindNumber").value.trim();
+  if (!bindNumber) {
+    setStatus($("bindStatus"), false, "Enter the coupling code first.");
+    return;
+  }
+  if (!token()) {
+    setStatus($("bindStatus"), false, "Log in first — binding needs a session token.");
+    return;
+  }
+  btn.disabled = true;
+  setStatus($("bindStatus"), true, "Binding…");
+  try {
+    const r = await postJson("/api/bind", {
+      bindNumber,
+      randcode: $("bindRandcode").value.trim(),
+      token: token(),
+      authId: authId(),
+    });
+    if (r.ok) {
+      setStatus($("bindStatus"), true, "Bind request accepted.");
+    } else {
+      setStatus($("bindStatus"), false, `${r.code || "error"} — ${r.desc || r.error || "bind failed"}`);
+    }
+    if (r.raw) showPre($("bindRaw"), r.raw);
+  } catch (err) {
+    setStatus($("bindStatus"), false, String(err));
+  } finally {
+    btn.disabled = false;
+  }
+};
+
 $("btnSend").onclick = async () => {
   const btn = $("btnSend");
   btn.disabled = true;
