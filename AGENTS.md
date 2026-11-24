@@ -2,6 +2,15 @@
 
 Reverse-engineered **OpenAPI 3.0.3** spec for the imoo Watch companion app (`com.imoo.watch.global`). It is a research reference, not a running service or a generated SDK. Personal research; not affiliated with imoo / BBK Electronics.
 
+## Component guides
+
+Repo-wide essentials stay here; directory-specific rules live in the linked guides, so each fact lives in one place:
+
+- [prototype/AGENTS.md](prototype/AGENTS.md) — the executable Express prototype: commands, local state, captcha/environment flags.
+- [tools/AGENTS.md](tools/AGENTS.md) — APK/native extraction and Frida triage: prerequisites, invocation, generated output.
+
+`docs/` holds analysis, not local rules — see "Where deeper findings live" below. `history/` is a one-off lab note, not a guide. `native/` is large gitignored, extracted output; never commit or hand-edit it (see the tools guide).
+
 ## What an agent must not assume
 
 - **HTTP methods are inferred**, not observed. They are guessed from endpoint naming (`get*`→GET, `add*`/`create*`→POST, `delete*`→DELETE). Treat any method as a hypothesis until confirmed against a live session.
@@ -22,7 +31,7 @@ Bytecode agrees: `api.watch.okii.com` exists only as `HttpConstants.HOST_NAME_AR
 
 - Swagger UI: the README's editor.swagger.io link renders the raw GitHub `openapi.yaml` — no local setup needed.
 - Optional local validation (not preinstalled, verify before relying on it): `npx @redocly/cli lint openapi.yaml` or `npx @redocly/cli preview openapi.yaml`.
-- The prototype is the only executable component: `cd prototype && npm install && npm test` (offline fixtures) and `npm start` (web UI at `http://localhost:3000`, `GET /api/selftest` for live checks). It implements the SSO envelope, SMS login, **password login via `/app/loginV2`**, and the core-API envelope. SMS OTP send is reCAPTCHA-gated; with a rooted phone + frida-server, start it with `IMOORE_CAPTCHA_BRIDGE=1` to mint tokens from the official app (`prototype/tools/fetch-captcha.js` + `.py`). Without the bridge, password login is the fallback. The spec itself still has no build/test/lint config.
+- `openapi.yaml` has no build/test/lint config. The prototype is the only executable component; its commands and live/offline split are documented in [prototype/AGENTS.md](prototype/AGENTS.md).
 
 ## How the spec was built (and how to extend it)
 
@@ -33,16 +42,17 @@ Coverage came from static APK analysis, not a live API:
 3. Run `strings` over all DEX files and grep for URL/path constants
 4. Classify the ~240 discovered endpoints into the 6 service groups
 
-To add endpoints, repeat this pipeline and reconcile new paths against the existing tags. Prefer `strings` + grep over guessing — the APK is the ground truth, the spec is the map.
+To add endpoints, repeat this pipeline and reconcile new paths against the existing tags. Prefer `strings` + grep over guessing — the APK is the ground truth, the spec is the map. The scripts that reproduce the extraction and crypto triage are described in [tools/AGENTS.md](tools/AGENTS.md).
 
 ## Where deeper findings live
 
 `docs/` holds analysis that goes beyond what static analysis could confirm:
 
-- `docs/authentication.md` — login flows (SMS OTP + reCAPTCHA gate, password via `/app/loginV2`, token resume, QR research), session token shape, the admin/member access split, and the family-invite code.
-- `docs/signing-and-crypto.md` — the request signature (MD5 over url + sorted `k=v` + per-appId secret), the recovered secrets, the AES/RSA envelope, and the full SSO header set. Verified live against `account-oz.okii.com`.
-- `docs/account-model.md` — identity is role-relative to a watch (`mobileaccount`/`watchaccount`/`geniusAccount`), not a profile page. Admin vs member is enforced server-side per endpoint; the invitation "Kopplungscode" is a binding reference, not a credential.
-- `docs/recaptcha-bridge.md` — why `sendRandCodeV2` requires a Google reCAPTCHA token minted by the official app, the Frida/adb bridge, its requirements, and failure modes.
+- [`docs/authentication.md`](docs/authentication.md) — login flows (SMS OTP + reCAPTCHA gate, password via `/app/loginV2`, token resume, QR research), session token shape, the admin/member access split, and the family-invite code.
+- [`docs/signing-and-crypto.md`](docs/signing-and-crypto.md) — the request signature (MD5 over url + sorted `k=v` + per-appId secret), the recovered secrets, the AES/RSA envelope, and the full SSO header set. Verified live against `account-oz.okii.com`.
+- [`docs/auth-protocol.md`](docs/auth-protocol.md) — end-to-end map of the two signed envelopes, SSO vs core API.
+- [`docs/account-model.md`](docs/account-model.md) — identity is role-relative to a watch (`mobileaccount`/`watchaccount`/`geniusAccount`), not a profile page. Admin vs member is enforced server-side per endpoint; the invitation "Kopplungscode" is a binding reference, not a credential.
+- [`docs/recaptcha-bridge.md`](docs/recaptcha-bridge.md) — why `sendRandCodeV2` requires a Google reCAPTCHA token minted by the official app, the Frida/adb bridge, its requirements, and failure modes.
 
 Read these before asserting auth/role behavior in generated code or docs.
 
@@ -50,11 +60,11 @@ Read these before asserting auth/role behavior in generated code or docs.
 
 `/app/*` requests are signed (`sign` param) and encrypted (`EncryptType: 1` +
 `EncryptKey` header). The secrets were recovered statically from
-`librubbish.so` (the ABI split, not `base.apk`) via `tools/pull-native.sh`; the
-crypto itself is Java (`d.b.a.A1`) reached through JNI trampolines. Do not
-re-introduce `Authorization: Bearer` — this app never sends it.
+`librubbish.so` (the ABI split, not `base.apk`) via the extraction/triage scripts
+in [tools/AGENTS.md](tools/AGENTS.md); the crypto itself is Java (`d.b.a.A1`)
+reached through JNI trampolines. Do not re-introduce `Authorization: Bearer` —
+this app never sends it.
 
 The core API uses a different envelope: `Base-Request-Param` (AES key wrapped
 to the `GET /rsa` public key in `Eebbk-Key`, signed with `Eebbk-Sign`). It is
 verified live up to the token check — see `docs/signing-and-crypto.md`.
-
